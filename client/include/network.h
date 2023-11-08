@@ -12,8 +12,6 @@ namespace Network {
     const int TASK_DELETE = 4;
     const int TASK_EXIT = 5;
 
-    int LAST_TASK_ID = 0;
-
     struct network_task {
         int type;
         int task_id;
@@ -23,25 +21,12 @@ namespace Network {
         std::vector<FileSystem::file_description> files;
     };
 
-    std::queue<network_task> task_queue;
-    std::queue<network_task> done_queue;
+    int upload_file(std::string username, std::string path);
+    int download_file(std::string username, std::string path);
+    int delete_file(std::string username, std::string path);
+    int client_exit(std::string username);
+    int list_files(std::string username, std::string path);
 
-    void upload_file(std::string username, std::string path) {
-        uint8_t *content = FileSystem::read_file(path);
-        task_queue.push({
-                TASK_UPLOAD, 
-                LAST_TASK_ID++, 
-                username,
-                path,
-                content,
-                std::vector<FileSystem::file_description>(),
-                });
-    }
-
-    void download_file(std::string username, std::string path);
-    void delete_file(std::string username, std::string path);
-    void client_exit(std::string username, std::string path);
-    void list_files(std::string username, std::string path);
-
-    bool try_get(network_task *task);
+    bool try_get_task(network_task *task);
+    void get_task(network_task *task);
 }
