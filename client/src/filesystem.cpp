@@ -7,7 +7,7 @@
 #include "../include/filesystem.h"
 
 
-namespace FileSystem{
+namespace FileManager{
 
     bool write_file(std::string path, uint8_t *buf){
         std::ofstream file;
