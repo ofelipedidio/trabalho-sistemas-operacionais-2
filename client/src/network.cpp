@@ -18,7 +18,7 @@ namespace Network {
     }
 
     int upload_file(std::string username, std::string path) {
-        uint8_t *content = FileSystem::read_file(path);
+        uint8_t *content = FileManager::read_file(path);
         int task_id = next_task_id();
         task_queue.push({
                 TASK_UPLOAD, 
@@ -26,7 +26,7 @@ namespace Network {
                 username,
                 path,
                 content,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         return task_id;
     }
@@ -39,7 +39,7 @@ namespace Network {
                 username,
                 path,
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         return task_id;
     }
@@ -52,7 +52,7 @@ namespace Network {
                 username,
                 path,
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         return task_id;
     }
@@ -65,7 +65,7 @@ namespace Network {
                 username,
                 "",
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         return task_id;
     }
@@ -78,7 +78,7 @@ namespace Network {
                 username,
                 "",
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         return task_id;
     }
