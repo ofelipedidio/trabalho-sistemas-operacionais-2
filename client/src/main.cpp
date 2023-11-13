@@ -14,7 +14,9 @@ int main(int argc, char **argv) {
     std::string ip(argv[2]);
     std::string port(argv[3]);
 
-    // TODO - Didio: Start networking thread
+    // Start networking thread
+    Network::init(ip, port);
+
     // Start FS notify thread
     FSNotify::init();
 
