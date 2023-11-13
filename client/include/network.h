@@ -21,6 +21,8 @@ namespace Network {
         std::vector<FileSystem::file_description> files;
     };
 
+    void init(std::string ip, std::string port);
+
     int upload_file(std::string username, std::string path);
     int download_file(std::string username, std::string path);
     int delete_file(std::string username, std::string path);
