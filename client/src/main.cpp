@@ -15,9 +15,11 @@ int main(int argc, char **argv) {
     std::string port(argv[3]);
 
     // TODO - Didio: Start networking thread
-    // TODO - Didio: Start FS notify thread
+    // Start FS notify thread
+    FSNotify::init();
 
-    // Start app
+    // TODO - Didio: Start app
+
     App::init(username);
 
     return 0;
