@@ -119,7 +119,7 @@ namespace Network {
                 username,
                 path,
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         sem_post(&__internal::mutex);
         sem_post(&__internal::available);
