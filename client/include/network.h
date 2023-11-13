@@ -20,7 +20,7 @@ namespace Network {
         std::string username;
         std::string filename;
         uint8_t *content;
-        std::vector<FileSystem::file_description> files;
+        std::vector<FileManager::file_description> files;
     };
 
     void init(std::string ip, std::string port);

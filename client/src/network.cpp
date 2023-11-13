@@ -113,6 +113,7 @@ namespace Network {
         sem_wait(&__internal::mutex);
         int task_id = __internal::next_task_id();
         __internal::task_queue.push({
+
                 TASK_UPLOAD, 
                 task_id, 
                 username,
@@ -137,7 +138,7 @@ namespace Network {
                 username,
                 path,
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         sem_post(&__internal::mutex);
         sem_post(&__internal::available);
@@ -156,7 +157,7 @@ namespace Network {
                 username,
                 path,
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         sem_post(&__internal::mutex);
         sem_post(&__internal::available);
@@ -175,7 +176,7 @@ namespace Network {
                 username,
                 "",
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         sem_post(&__internal::mutex);
         sem_post(&__internal::available);
@@ -194,7 +195,7 @@ namespace Network {
                 username,
                 "",
                 nullptr,
-                std::vector<FileSystem::file_description>(),
+                std::vector<FileManager::file_description>(),
                 });
         sem_post(&__internal::mutex);
         sem_post(&__internal::available);

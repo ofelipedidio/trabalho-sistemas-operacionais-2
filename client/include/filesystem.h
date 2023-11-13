@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-namespace FileSystem {
+namespace FileManager {
     typedef std::pair<std::string, uint64_t> file_description;
 
     bool write_file(std::string path, uint8_t *buf);
