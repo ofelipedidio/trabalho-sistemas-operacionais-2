@@ -82,7 +82,16 @@ namespace Network {
                 next_task(&task);
                 // TODO - Didio: Process the task
                 switch (task.type) {
-                    
+                    case TASK_UPLOAD:
+                        break;
+                    case TASK_DOWNLOAD:
+                        break;
+                    case TASK_DELETE:
+                        break;
+                    case TASK_LIST_FILES:
+                        break;
+                    case TASK_EXIT:
+                        break;
                 }
                 finish_task(&task);
             }
