@@ -6,11 +6,13 @@
 #include "../include/filesystem.h"
 
 namespace Network {
-    const int TASK_LIST_FILES = 1;
-    const int TASK_UPLOAD = 2;
-    const int TASK_DOWNLOAD = 3;
-    const int TASK_DELETE = 4;
-    const int TASK_EXIT = 5;
+    enum task_type {
+        TASK_LIST_FILES = 1,
+        TASK_UPLOAD = 2,
+        TASK_DOWNLOAD = 3,
+        TASK_DELETE = 4,
+        TASK_EXIT = 5,
+    };
 
     struct network_task {
         int type;
