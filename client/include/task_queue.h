@@ -69,7 +69,7 @@ namespace TaskQueue {
                 int next_id() {
                     sem_wait(&this->in_mutex);
                     return this->last_id++;
-                    sem_post(&this->int_mutex);
+                    sem_post(&this->in_mutex);
                 }
         };
 }
