@@ -1,18 +1,40 @@
-CC=g++
-CFLAGS=-Iinclude
-DEPS=include/network.h include/filesystem.h include/app.h include/cli.h
-OBJ=src/network.cpp    src/filesystem.h     src/app.h     src/cli.h
+CXX = g++
+# -Wall: Generate all warning
+# -g: Keep debugging symbols
+CXXFLAGS = -Wall -g
 
-%.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
+# Project files
+SRC = $(wildcard src/*.cpp)
+OBJ = $(patsubst src/%.cpp, build/%.o, $(SRC))
 
-$(ETAPA): $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS)
+# The first rule is the one that is ran when you run `make`
+all: clean compile 
 
-run: $(ETAPA)
-	./$(ETAPA)
+# Create directories
+bin:
+	mkdir -p bin
+
+build:
+	mkdir -p build
+
+# Compile `.cpp` to `.o`
+build/%.o: src/%.cpp |build
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Compile `.o` to binary
+bin/client: $(OBJ) |bin
+	$(CXX) -o bin/client $(OBJ)
+
+# Rules that are not attached to files
+.PHONY: compile clean test
+
+# Targets
+compile: bin/client
+
+test: CXXFLAGS += -DTEST_MODE
+test: clean compile 
+	./bin/client
 
 clean:
-	rm -f lex.yy.* *.o etapa* parser.tab.*
-	rm -rf entrega
+	rm -rf build bin
 
