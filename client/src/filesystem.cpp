@@ -1,7 +1,10 @@
+#include <sys/types.h>
 #include <fstream>
 #include <cstdio>
 #include <filesystem>
 #include <chrono>
+#include <iostream>
+#include <sys/stat.h>
 
 
 #include "../include/filesystem.h"
@@ -47,18 +50,25 @@ namespace FileManager{
 
     std::vector<file_description> list_files(std::string path){//retorna um vetor vazio caso path não seja diretório
         std::vector<file_description> files_list;
-        
+
         if (std::filesystem::is_directory(path))
         {
             for (const auto& entry : std::filesystem::directory_iterator(path))
             {
                 if(std::filesystem::is_regular_file(entry)){//só retorna informações de arquivos que não sejam diretórios
-                    std::string filename = entry.path().filename().string();
-                    uint64_t modified_time = std::filesystem::last_write_time(entry).time_since_epoch().count();
-                    files_list.emplace_back(filename,modified_time);
+                    struct stat result;
+                    std::string filename = entry.path().string();
+                    if (stat(filename.c_str(), &result)==0)
+                    {
+                        auto mod_time = result.st_mtime;
+                        uint64_t modified_time = mod_time;
+                        files_list.emplace_back(filename, modified_time);
+                    } else {
+                        exit(69);
+                    }
                 }
             }
-            
+
         }        
 
         return files_list;
