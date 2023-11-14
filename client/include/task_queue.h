@@ -9,9 +9,11 @@ namespace TaskQueue {
                 std::queue<task_t> in_queue;
                 std::queue<task_t> out_queue;
                 sem_t in_mutex, out_mutex, in_ready, out_ready;
+                int last_id;
 
             public:
                 async_task_queue() {
+                    this->last_id = 0;
                     this->in_queue = std::queue<task_t>();
                     this->out_queue = std::queue<task_t>();
                     sem_init(&this->in_mutex, 0, 1);
@@ -62,6 +64,12 @@ namespace TaskQueue {
                     } else {
                         return {};
                     }
+                }
+
+                int next_id() {
+                    sem_wait(&this->in_mutex);
+                    return this->last_id++;
+                    sem_post(&this->int_mutex);
                 }
         };
 }
