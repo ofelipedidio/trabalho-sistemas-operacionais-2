@@ -43,10 +43,10 @@ client: bin/client
 
 server: bin/server
 
-test_client: CXXFLAGS += -DTEST
+test_client: CXXFLAGS += -DTEST_MODE
 test_client: client
 
-test_server: CXXFLAGS += -DTEST
+test_server: CXXFLAGS += -DTEST_MODE
 test_server: client
 
 clean:
