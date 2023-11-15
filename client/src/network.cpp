@@ -15,7 +15,8 @@ namespace Network {
     std::string port;
 
     namespace __internal {
-        TaskQueue::async_task_queue<Network::network_task> task_queue;
+        AsyncQueue::async_queue<Network::network_task> task_queue;
+        AsyncQueue::async_queue<Network::network_task> done_queue;
 
         /*
          * The networking thread function
@@ -24,7 +25,7 @@ namespace Network {
             network_task task;
 
             while (1) {
-                task = task_queue.take();
+                task = task_queue.pop();
                 
                 // TODO - Didio: Process the task
                 switch (task.type) {
@@ -39,7 +40,7 @@ namespace Network {
                     case TASK_EXIT:
                         break;
                 }
-                task_queue.insert_done(task);
+                task_queue.push(task);
             }
 
             pthread_exit(nullptr);
@@ -53,7 +54,8 @@ namespace Network {
         Network::ip = ip;
         Network::port = port;
 
-        __internal::task_queue = TaskQueue::async_task_queue<network_task>();
+        __internal::task_queue = AsyncQueue::async_queue<network_task>();
+        __internal::done_queue = AsyncQueue::async_queue<network_task>();
 
         pthread_create(&network_thread, NULL, __internal::thread_function, nullptr);
     }
@@ -63,7 +65,7 @@ namespace Network {
      */
     int upload_file(std::string username, std::string path) {
         int task_id = __internal::task_queue.next_id();
-        __internal::task_queue.insert({
+        __internal::task_queue.push({
                 TASK_UPLOAD, 
                 task_id, 
                 username,
@@ -79,7 +81,7 @@ namespace Network {
      */
     int download_file(std::string username, std::string path) {
         int task_id = __internal::task_queue.next_id();
-        __internal::task_queue.insert({
+        __internal::task_queue.push({
                 TASK_DOWNLOAD, 
                 task_id, 
                 username,
@@ -95,7 +97,7 @@ namespace Network {
      */
     int delete_file(std::string username, std::string path) {
         int task_id = __internal::task_queue.next_id();
-        __internal::task_queue.insert({
+        __internal::task_queue.push({
                 TASK_DELETE, 
                 task_id, 
                 username,
@@ -111,7 +113,7 @@ namespace Network {
      */
     int client_exit(std::string username) {
         int task_id = __internal::task_queue.next_id();
-        __internal::task_queue.insert({
+        __internal::task_queue.push({
                 TASK_EXIT, 
                 task_id, 
                 username,
@@ -127,7 +129,7 @@ namespace Network {
      */
     int list_files(std::string username, std::string path) {
         int task_id = __internal::task_queue.next_id();
-        __internal::task_queue.insert({
+        __internal::task_queue.push({
                 TASK_LIST_FILES, 
                 task_id, 
                 username,
@@ -143,7 +145,7 @@ namespace Network {
      * Returns true, if there is a task in the done queue. Returns false otherwise.
      */
     bool try_get_task(network_task *task) {
-        std::optional<network_task> _done_task = __internal::task_queue.try_take_done();
+        std::optional<network_task> _done_task = __internal::done_queue.try_pop();
         if (_done_task) {
             network_task done_task = _done_task.value();
             task->type = done_task.type;
@@ -163,7 +165,7 @@ namespace Network {
      * Immediately returns, if there is a task in the done queue, waits otherwise.
      */
     void get_task(network_task *task) {
-        network_task done_task = __internal::task_queue.take_done();
+        network_task done_task = __internal::done_queue.pop();
 
         // Copy the data from the done task to task
         task->type = done_task.type;
