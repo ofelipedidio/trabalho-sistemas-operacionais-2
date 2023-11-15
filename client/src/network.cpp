@@ -7,7 +7,7 @@
 #include <vector>
 #include <semaphore.h>
 
-#include "../include/task_queue.h"
+#include "../include/async_queue.h"
 #include "../include/network.h"
 
 namespace Network {
