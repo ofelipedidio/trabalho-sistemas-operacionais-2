@@ -29,20 +29,29 @@ namespace FileManager{
         return false;
     }
 
-    uint8_t *read_file(std::string path){
+    File_Metadata *read_file(std::string path){
         std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
-        if (!file.is_open()) //retorna um ponteiro com 0 caso não consiga acessar o arquivo
+        File_Metadata* metadados = (File_Metadata*) malloc(sizeof(File_Metadata));
+
+        if (!file.is_open()) //retorna um metadado com 0 caso não consiga acessar o arquivo
         {
-            u_int8_t *data = (u_int8_t*) malloc(sizeof(char));
-            *data = '\0';
-            return data;
+            (*metadados).mac = 0;
+            (*metadados).length = 0;
+            return metadados;
         }
         std::streampos size = file.tellg();
-        u_int8_t *data = (u_int8_t*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
+        
+        struct stat mac;
+        stat(path.c_str(), &mac);
+        auto mod_time = mac.st_mtime;
+        (*metadados).mac = mod_time;
+        (*metadados).length = size;
+
+        (*metadados).contents = (char*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
         file.seekg (0, std::ios::beg);
-        file.read ((char*)data, size);
+        file.read ((*metadados).contents, size);
         file.close();
-        return data;
+        return metadados;
     }
 
     bool delete_file(std::string path){//true em caso de sucesso 

@@ -8,8 +8,14 @@
 namespace FileManager {
     typedef std::pair<std::string, uint64_t> file_description;
 
+    typedef struct Read_File_Metadata {
+        long long int length;
+        long long int mac;
+        char* contents;
+    } File_Metadata;
+    
     bool write_file(std::string path, uint8_t *buf);
-    uint8_t *read_file(std::string path);
+    File_Metadata *read_file(std::string path);
     bool delete_file(std::string path);
     std::vector<file_description> list_files(std::string path);
 }
