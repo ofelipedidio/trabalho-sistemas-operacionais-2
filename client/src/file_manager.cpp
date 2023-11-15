@@ -8,7 +8,6 @@
 #include <semaphore.h>
 
 #include "../include/file_manager.h"
-#include "../include/fs_notify.h"
 
 namespace FileManager{
 

@@ -1,12 +1,19 @@
 #include <sys/inotify.h>
+#include<semaphore.h>
 #include <string>
 
 namespace FSNotify {
     #define BUFFER_SIZE 8192
     
-    pthread_t FSNotify_thread;
-    pthread_attr_t attr;
-    sem_t enable_notify;
+    #ifndef GLOBAL_H
+    #define GLOBAL_H
+
+    inline sem_t enable_notify; // Felipe K - avoid multiple declarations of variable
+
+    #endif
+
+    
+
 
     namespace __internal{
         void *thread_function(void *arg);

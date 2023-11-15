@@ -12,9 +12,8 @@
 
 
 namespace FSNotify {
-    /*pthread_t FSNotify_thread;
+    pthread_t FSNotify_thread;
     pthread_attr_t attr;
-    sem_t enable_notify;*/
     
     namespace __internal{
         void *thread_function(void *arg){
@@ -54,7 +53,7 @@ namespace FSNotify {
                 for (char *p = buffer; p < buffer + bytesRead;) {
                     struct inotify_event *event = reinterpret_cast<struct inotify_event *>(p);
 
-                    if (event->mask & IN_MODIFY | event->mask & IN_CLOSE_WRITE) {
+                    if ((event->mask & IN_MODIFY) | (event->mask & IN_CLOSE_WRITE)) {
                         std::cout << "File modified: " << event->name << std::endl;
                         if (!modified(event))
                         {
@@ -63,14 +62,14 @@ namespace FSNotify {
                         
                     }
 
-                    if (event->mask & IN_CREATE | event->mask & IN_MOVED_TO) {
+                    if ((event->mask & IN_CREATE) | (event->mask & IN_MOVED_TO)) {
                         std::cout << "File created: " << event->name << std::endl;
                         if(!created(event)){
                             std::cerr << "failed to notify creation\n";
                         }
                     }
 
-                    if (event->mask & IN_DELETE | event->mask & IN_MOVED_FROM) {
+                    if ((event->mask & IN_DELETE) | (event->mask & IN_MOVED_FROM)) {
                         std::cout << "File deleted: " << event->name << std::endl;
                         if(!deleted(event)){
                             std::cerr << "failed to notify deletion\n";

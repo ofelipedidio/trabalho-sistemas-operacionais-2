@@ -3,6 +3,8 @@
 #include <utility>
 #include <vector>
 
+#include "../include/fs_notify.h"
+
 namespace FileManager {
     typedef std::pair<std::string, uint64_t> file_description;
 
