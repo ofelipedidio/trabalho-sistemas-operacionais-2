@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstdint>
 #include <optional>
 #include <pthread.h>
@@ -13,6 +14,7 @@ namespace Network {
     pthread_t network_thread;
     std::string ip;
     std::string port;
+    std::atomic<int> last_task_id;
 
     namespace __internal {
         AsyncQueue::async_queue<Network::network_task> task_queue;
@@ -64,7 +66,7 @@ namespace Network {
      * Adds an upload task to the task queue and returns the task id
      */
     int upload_file(std::string username, std::string path) {
-        int task_id = __internal::task_queue.next_id();
+        int task_id = last_task_id++;
         __internal::task_queue.push({
                 TASK_UPLOAD, 
                 task_id, 
@@ -80,7 +82,7 @@ namespace Network {
      * Adds a download task to the task queue and returns the task id
      */
     int download_file(std::string username, std::string path) {
-        int task_id = __internal::task_queue.next_id();
+        int task_id = last_task_id++;
         __internal::task_queue.push({
                 TASK_DOWNLOAD, 
                 task_id, 
@@ -96,7 +98,7 @@ namespace Network {
      * Adds a delete task to the task queue and returns the task id
      */
     int delete_file(std::string username, std::string path) {
-        int task_id = __internal::task_queue.next_id();
+        int task_id = last_task_id++;
         __internal::task_queue.push({
                 TASK_DELETE, 
                 task_id, 
@@ -112,7 +114,7 @@ namespace Network {
      * Adds a exit task to the task queue and locks the thread until the networking subsystem is properly shutdown
      */
     int client_exit(std::string username) {
-        int task_id = __internal::task_queue.next_id();
+        int task_id = last_task_id++;
         __internal::task_queue.push({
                 TASK_EXIT, 
                 task_id, 
@@ -128,7 +130,7 @@ namespace Network {
      * Adds a list files task to the task queue and returns the task id
      */
     int list_files(std::string username, std::string path) {
-        int task_id = __internal::task_queue.next_id();
+        int task_id = last_task_id++;
         __internal::task_queue.push({
                 TASK_LIST_FILES, 
                 task_id, 

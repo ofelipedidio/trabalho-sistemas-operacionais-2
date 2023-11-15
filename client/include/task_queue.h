@@ -8,11 +8,9 @@ namespace AsyncQueue {
             private:
                 std::queue<item_t> queue;
                 sem_t mutex, awaiting;
-                int last_id;
 
             public:
                 async_queue() {
-                    this->last_id = 0;
                     this->queue = std::queue<item_t>();
                     sem_init(&this->mutex, 0, 1);
                     sem_init(&this->awaiting, 0, 0);
@@ -44,12 +42,6 @@ namespace AsyncQueue {
                     } else {
                         return {};
                     }
-                }
-
-                int next_id() {
-                    sem_wait(&this->mutex);
-                    return this->last_id++;
-                    sem_post(&this->mutex);
                 }
         };
 }
