@@ -4,7 +4,7 @@
 #endif
 
 #include "../include/network.h"
-#include "../include/fs_notify.h"
+//#include "../include/fs_notify.h"
 #include "../include/app.h"
 #include <iostream>
 #include <string>
@@ -23,9 +23,13 @@ int main(int argc, char **argv) {
     // Start networking thread
     Network::init(ip, port);
 
+    
     // Start FS notify thread
-    FSNotify::init();
+    std::string dir("sync_dir");// ***
+    dir.append(username);       // Felipe K - por favor tem q arrumar coloquei só pra compilar
+    FSNotify::init(dir);        // ***
 
+    FileManager::delete_file("asd");
     // TODO - Didio: Start app
 
     App::init(username);

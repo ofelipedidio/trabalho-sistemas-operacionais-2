@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iostream>
 #include <sys/stat.h>
+#include <semaphore.h>
 
 #include "../include/file_manager.h"
 
@@ -13,12 +14,18 @@ namespace FileManager{
     bool write_file(std::string path, uint8_t *buf){ //true em caso de sucesso
         std::ofstream file;
         //TODO: Felipe K - garantir que inotify não pegue oq esta sendo escrito como algo novo
+
+        // Felipe K - por enquanto inotify não manda eventos enquanto o write estiver ativo
+        // porém vai enviar a notificação após o fim do write
+        sem_wait(&FSNotify::enable_notify);
         file.open(path, std::ios::out | std::ios::trunc);// opens file for output and deletes what was already there
         if(file.is_open()){
             file << buf;
             file.close();
+            sem_post(&FSNotify::enable_notify);
             return true;
         }
+        sem_post(&FSNotify::enable_notify);
         return false;
     }
 
