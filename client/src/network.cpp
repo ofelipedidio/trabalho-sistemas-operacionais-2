@@ -13,7 +13,7 @@
 namespace Network {
     pthread_t network_thread;
     std::string ip;
-    std::string port;
+    uint16_t port;
     std::atomic<int> last_task_id;
 
     namespace __internal {
@@ -52,7 +52,7 @@ namespace Network {
     /*
      * Initializes the network subsystem and starts the network thread
      */
-    void init(std::string ip, std::string port) {
+    bool init(std::string ip, uint16_t port) {
         Network::ip = ip;
         Network::port = port;
 
