@@ -1,0 +1,9 @@
+rm -rf build bin
+mkdir -p build
+g++ -Wall -g -DTEST_MODE -c src/filesystem.cpp -o build/filesystem.o
+g++ -Wall -g -DTEST_MODE -c src/main.cpp -o build/main.o
+g++ -Wall -g -DTEST_MODE -c src/network.cpp -o build/network.o
+g++ -Wall -g -DTEST_MODE -c src/server.cpp -o build/server.o
+mkdir -p bin
+g++ -o bin/server  build/filesystem.o  build/main.o  build/network.o  build/server.o
+./bin/server
