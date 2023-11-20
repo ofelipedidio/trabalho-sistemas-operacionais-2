@@ -1,20 +1,32 @@
 #include <atomic>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 #include <pthread.h>
 #include <queue>
 #include <string>
+#include <strings.h>
 #include <vector>
 #include <semaphore.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 #include "../include/async_queue.h"
 #include "../include/network.h"
+#include "../include/net_protocol.h"
 
 namespace Network {
     pthread_t network_thread;
     std::string ip;
-    std::string port;
+    uint16_t port;
     std::atomic<int> last_task_id;
+    int sockfd;
 
     namespace __internal {
         AsyncQueue::async_queue<Network::network_task> task_queue;
@@ -26,8 +38,10 @@ namespace Network {
         void *thread_function(void* p) {
             network_task task;
 
-            while (1) {
+            while (true) {
+                log_debug("Task queue size = " << task_queue.size());
                 task = task_queue.pop();
+                log_debug("(B) Task queue size = " << task_queue.size());
                 
                 // TODO - Didio: Process the task
                 switch (task.type) {
@@ -36,13 +50,31 @@ namespace Network {
                     case TASK_UPLOAD:
                         break;
                     case TASK_DOWNLOAD:
+                        {
+                            // TODO - Didio: Replace mock request with the data provided on the task
+                            char username[] = "didio";
+                            char filename[] = "file.txt";
+
+                            struct message_download message;
+                            message.header.protocol_version = 1;
+                            message.header.message_type = MSG_DOWNLOAD;
+                            message.header.username.length = 5;
+                            message.header.username.content = username;
+                            message.header.payload_length = 12;
+                            message.filename.length = 8;
+                            message.filename.content = filename;
+
+                            auto write_size = send_message_download(sockfd, message);
+                            log_debug(log_value(write_size));
+                        }
+
                         break;
                     case TASK_DELETE:
                         break;
                     case TASK_EXIT:
                         break;
                 }
-                task_queue.push(task);
+                done_queue.push(task);
             }
 
             pthread_exit(nullptr);
@@ -52,14 +84,38 @@ namespace Network {
     /*
      * Initializes the network subsystem and starts the network thread
      */
-    void init(std::string ip, std::string port) {
+    bool init(std::string ip, uint16_t port) {
         Network::ip = ip;
         Network::port = port;
 
         __internal::task_queue = AsyncQueue::async_queue<network_task>();
         __internal::done_queue = AsyncQueue::async_queue<network_task>();
 
-        pthread_create(&network_thread, NULL, __internal::thread_function, nullptr);
+        /*
+         * Create socket and connect to server
+         */
+        {
+            struct sockaddr_in server_addr;
+            server_addr.sin_family = AF_INET;
+            server_addr.sin_port = htons(port);
+            inet_aton(ip.c_str(), &server_addr.sin_addr);
+            bzero(&server_addr.sin_zero, 8);
+
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd == -1) {
+                // TODO - Didio: Handle error;
+                return false;
+            }
+
+            int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+            if (connect_response < 0) {
+                // TODO - Didio: Handle error
+                return false;
+            }
+        }
+
+        pthread_create(&network_thread, NULL, __internal::thread_function, NULL);
+        return true;
     }
 
     /*

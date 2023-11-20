@@ -17,24 +17,27 @@ bin:
 build:
 	mkdir -p build
 
+include/%.h: src/%.cpp
+
 # Compile `.cpp` to `.o`
 build/%.o: src/%.cpp |build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Compile `.o` to binary
-bin/client: $(OBJ) |bin
-	$(CXX) -o bin/client $(OBJ)
+bin/server: $(OBJ) |bin
+	$(CXX) -o bin/server $(OBJ)
 
 # Rules that are not attached to files
 .PHONY: compile clean test
 
 # Targets
-compile: bin/client
+compile: bin/server
 
 test: CXXFLAGS += -DTEST_MODE
 test: clean compile 
-	./bin/client
+	./bin/server
 
 clean:
 	rm -rf build bin
+
 
