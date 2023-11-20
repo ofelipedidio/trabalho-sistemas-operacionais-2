@@ -234,7 +234,7 @@ void *http_thread(void *_arg) {
                     flush(writer);
                 } else {
                     write(writer, "HTTP/1.1 404 Not Found\r\n");
-                    write(writer, "\r\n");
+                    write(writer, "Content-Length: 0\r\n");
                     write(writer, "\r\n");
                     flush(writer);
                 }
@@ -411,7 +411,7 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
         newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
         if (newsockfd == -1) {
             log_debug("[LISTEN] Could not accept a connection");
-            return false;
+            break;
         }
         log_debug("[LISTEN] Got a connection from (" << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << ")");
 
