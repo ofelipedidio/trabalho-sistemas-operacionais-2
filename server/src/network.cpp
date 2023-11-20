@@ -26,6 +26,8 @@ bool tcp_dump(std::string ip, uint16_t port) {
     char buffer[256];
     struct sockaddr_in serv_addr, cli_addr;
 
+    log_debug(log_value(n));
+
     log_debug("Initializing socket");
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {

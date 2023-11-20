@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <queue>
 #include <semaphore.h>
 #include <optional>
@@ -30,6 +31,13 @@ namespace AsyncQueue {
                     this->queue.pop();
                     sem_post(&this->mutex);
                     return task;
+                }
+
+                uint64_t size() {
+                    sem_wait(&this->mutex);
+                    uint64_t size = this->queue.size();
+                    sem_post(&this->mutex);
+                    return size;
                 }
 
                 std::optional<item_t> try_pop() {

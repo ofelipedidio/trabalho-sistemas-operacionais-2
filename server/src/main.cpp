@@ -1,5 +1,6 @@
 // Configurar sistemas
 #include "../include/network.h"
+#include "../include/http_server.h"
 #include <cstdint>
 #include <sstream>
 #include <string>
@@ -12,6 +13,6 @@ int main(int argc, char** argv) {
         iss >> port;
     }
 
-    tcp_dump("0.0.0.0", port);
+    tcp_dump_1("0.0.0.0", port);
     return 0;
 }

@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    Network::download_file(username, std::string("didio.txt"));
     
     /*
     // Start FS notify thread
@@ -48,6 +49,10 @@ int main(int argc, char **argv) {
 
     // TODO - Didio: Start app
     App::init(username);
+
+    while (true) {
+        
+    }
 
     return 0;
 }
