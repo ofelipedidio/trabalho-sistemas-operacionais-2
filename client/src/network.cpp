@@ -51,21 +51,7 @@ namespace Network {
                         break;
                     case TASK_DOWNLOAD:
                         {
-                            // TODO - Didio: Replace mock request with the data provided on the task
-                            char username[] = "didio";
-                            char filename[] = "file.txt";
 
-                            struct message_download message;
-                            message.header.protocol_version = 1;
-                            message.header.message_type = MSG_DOWNLOAD;
-                            message.header.username.length = 5;
-                            message.header.username.content = username;
-                            message.header.payload_length = 12;
-                            message.filename.length = 8;
-                            message.filename.content = filename;
-
-                            auto write_size = send_message_download(sockfd, message);
-                            log_debug(log_value(write_size));
                         }
 
                         break;

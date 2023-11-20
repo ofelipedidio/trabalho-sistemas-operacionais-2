@@ -7,7 +7,7 @@
 #include <semaphore.h>
 
 
-
+#include "../include/logger.h"
 #include "../include/fs_notify.h"
 
 
@@ -17,8 +17,10 @@ namespace FSNotify {
     
     namespace __internal{
         void *thread_function(void *arg){
-            std::string *path = static_cast<std::string*>(arg);
-            
+            std::string *username = static_cast<std::string*>(arg);
+            std::string _path = "sync_dir_" + (*username);
+            std::string *path = &_path;
+
             int Fd = inotify_init();
     
             if (Fd == -1) {
@@ -31,6 +33,7 @@ namespace FSNotify {
             int watchFd = inotify_add_watch(Fd, (*path).c_str(), mask);
             if (watchFd == -1) {
                 std::cerr << "inotify_add_watch error\n";
+                std::cerr << *path << std::endl;
                 close(Fd);
                 exit(EXIT_FAILURE);
             }
@@ -87,22 +90,23 @@ namespace FSNotify {
 
 
     bool modified(inotify_event *event){
-
+        log_debug("modified file: " << log_value((*event).name));
         return true;
     }
     bool created(inotify_event *event){
+        log_debug("created file: " << log_value((*event).name));
         return true;
     }
     bool deleted(inotify_event *event){
+        log_debug("deleted file: " << log_value((*event).name));
         return true;
     }
 
 
-    void init(std::string path) {
-
+    void init(std::string username) {
         sem_init(&enable_notify, 0, 1);
         pthread_attr_init(&attr);
 
-        pthread_create(&FSNotify_thread, &attr, __internal::thread_function, &path);
+        pthread_create(&FSNotify_thread, &attr, __internal::thread_function, &username);
     } 
 }
