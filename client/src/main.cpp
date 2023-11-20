@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "../include/logger.h"
+#include <cstdio>
 
 int main(int argc, char **argv) {
     if (argc <= 3) {
@@ -29,6 +30,8 @@ int main(int argc, char **argv) {
     std::istringstream iss(port_str);
     iss >> port;
 
+    system(("mkdir sync_dir_" + username).c_str());
+
     // Start networking thread
     if (!Network::init(ip, port)) {
         std::cerr << "ERROR: could not initialize the network submodule" << std::endl;
@@ -37,15 +40,13 @@ int main(int argc, char **argv) {
 
     Network::download_file(username, std::string("didio.txt"));
     
-    /*
+    
     // Start FS notify thread
     // TODO - Didio: Arrumar
-    std::string dir("sync_dir");// ***
-    dir.append(username);       // Felipe K - por favor tem q arrumar coloquei só pra compilar
-    FSNotify::init(dir);        // ***
+    FSNotify::init(username);
 
     FileManager::delete_file("asd");
-    */
+    
 
     // TODO - Didio: Start app
     App::init(username);
