@@ -47,9 +47,9 @@ namespace FileManager{
         (*metadados).mac = mod_time;
         (*metadados).length = size;
 
-        (*metadados).contents = (char*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
+        (*metadados).contents = (u_int8_t*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
         file.seekg (0, std::ios::beg);
-        file.read ((*metadados).contents, size);
+        file.read ((char *)(*metadados).contents, size);
         file.close();
         return metadados;
     }
