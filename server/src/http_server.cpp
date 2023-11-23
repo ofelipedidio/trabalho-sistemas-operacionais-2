@@ -48,6 +48,14 @@ std::string assemble_filename(std::string& username, std::string filename) {
     return assemble_dir(username) + "/" + filename;
 }
 
+#define read_until(reader, buffer, buffer_size, index, cond, adv) while (!(cond)) { \
+    buffer[index++] = peek(reader, 0); \
+    advance(reader, 1); \
+} \
+advance(reader, adv); \
+buffer[index] = '\0'; \
+index = 0;
+
 void *http_thread(void *_arg) {
     // Read argument
     struct thread_arguments *arg = (struct thread_arguments*) _arg;
@@ -78,40 +86,20 @@ void *http_thread(void *_arg) {
 
     while (ready(reader)) {
         log_debug(LOG_LABEL "Starting to read request");
-        
+
         // Read method
-        while (peek(reader, 0) != ' ') {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 1);
-        temp_buffer[index] = '\0';
+        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == ' ', 1);
         method = std::string(temp_buffer);
-        index = 0;
 
-
-        // Read path
-        while (peek(reader, 0) != ' ') {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 1);
-        temp_buffer[index] = '\0';
+        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == ' ', 1);
         path = std::string(temp_buffer);
-        index = 0;
 
-        // Read version
-        while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 2);
-        temp_buffer[index] = '\0';
+        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == '\r' && peek(reader, 1) == '\n', 2);
         version = std::string(temp_buffer);
-        index = 0;
+
+        log_debug(log_value(method));
+        log_debug(log_value(path));
+        log_debug(log_value(version));
 
         uint64_t content_length = 0;
         std::string transfer_encoding = "";
