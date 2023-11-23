@@ -70,8 +70,6 @@ void *http_thread(void *_arg) {
     char temp_buffer[BUF_SIZE];
     int index;
 
-    perror("");
-
     std::string method;
     std::string path;
     std::string version;
