@@ -110,7 +110,6 @@ void *http_thread(void *_arg) {
         while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
             std::string key;
             std::string value;
-
             // Read key
             while (!((c = peek(reader, 0)) == ':' && peek(reader, 1) == ' ')) {
                 temp_buffer[index++] = c;
@@ -120,7 +119,6 @@ void *http_thread(void *_arg) {
             temp_buffer[index] = '\0';
             key = std::string(temp_buffer);
             index = 0;
-
             // Read value
             while (!((c = peek(reader, 0)) == '\r' && peek(reader, 1) == '\n')) {
                 temp_buffer[index++] = c;
@@ -130,7 +128,6 @@ void *http_thread(void *_arg) {
             temp_buffer[index] = '\0';
             value = std::string(temp_buffer);
             index = 0;
-
             // Check if key is of interest
             if (key == "Content-Length") {
                 std::istringstream iss(value);
@@ -141,27 +138,22 @@ void *http_thread(void *_arg) {
         }
         advance(reader, 2);
         index = 0;
-
         // Handle request
         std::string filename = "";
         std::string key = "";
         std::string username = "";
         int i = 0;
-
         while (i < path.size() && path[i] == '/') {
             i++;
         }
-
         while (i < path.size() && !(path[i] == '?')) {
             temp_buffer[index++] = path[i++];
         }
         temp_buffer[index] = '\0';
         filename = std::string(temp_buffer);
         index = 0;
-
         if (i < path.size()) {
             i++;
-
             while (i < path.size()) {
                 while (i < path.size() && !(path[i] == '=' || path[i] == '&')) {
                     temp_buffer[index++] = path[i++];
@@ -169,10 +161,8 @@ void *http_thread(void *_arg) {
                 temp_buffer[index] = '\0';
                 key = std::string(temp_buffer);
                 index = 0;
-
                 if (i < path.size()) {
                     i++;
-
                     while (i < path.size() && path[i] != '&') {
                         temp_buffer[index++] = path[i++];
                     }
@@ -181,7 +171,6 @@ void *http_thread(void *_arg) {
                         username = std::string(temp_buffer);
                     }
                     index = 0;
-
                     if (i < path.size()) {
                         i++;
                     }
