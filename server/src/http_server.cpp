@@ -60,6 +60,46 @@ advance(reader, adv); \
 buffer[index] = '\0'; \
 index = 0;
 
+template<int SIZE>
+inline void parse_request_header(
+        tcp_reader<SIZE> *reader,
+        char *temp_buffer,
+        std::string *method,
+        std::string *path,
+        std::string *version,
+        uint64_t *content_length,
+        std::string *transfer_encoding) {
+    int index = 0;
+
+    // Read request line
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == ' ', 1);
+    *method = std::string(temp_buffer);
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == ' ', 1);
+    *path = std::string(temp_buffer);
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n', 2);
+    *version = std::string(temp_buffer);
+
+    // Read headers
+    while (!(peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n')) {
+        std::string header_key = "";
+        std::string header_value = "";
+
+        read_until(*reader, temp_buffer, BUF_SIZE, index, peek(*reader, 0) == ':' && peek(*reader, 1) == ' ', 2);
+        header_key = std::string(temp_buffer);
+        read_until(*reader, temp_buffer, BUF_SIZE, index, peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n', 2);
+        header_value = std::string(temp_buffer);
+
+        // Check if key is of interest
+        if (header_key == "Content-Length") {
+            std::istringstream iss(header_value);
+            iss >> *content_length;
+        } else if (header_key == "Transfer-Encoding") {
+            *transfer_encoding = header_value;
+        }
+    }
+    advance(*reader, 2);
+}
+
 void *http_thread(void *_arg) {
     // Read argument
     struct thread_arguments *arg = (struct thread_arguments*) _arg;
@@ -82,66 +122,18 @@ void *http_thread(void *_arg) {
     char temp_buffer[BUF_SIZE];
     int index;
 
+    // HTTP request
     std::string method;
     std::string path;
     std::string version;
-
-    char c;
+    uint64_t content_length;
+    std::string transfer_encoding;
 
     while (ready(reader)) {
         log_debug(LOG_LABEL "Starting to read request");
 
-        // Read method
-        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == ' ', 1);
-        method = std::string(temp_buffer);
+        parse_request_header(&reader, temp_buffer, &method, &path, &version, &content_length, &transfer_encoding);
 
-        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == ' ', 1);
-        path = std::string(temp_buffer);
-
-        read_until(reader, temp_buffer, BUF_SIZE, index, peek(reader, 0) == '\r' && peek(reader, 1) == '\n', 2);
-        version = std::string(temp_buffer);
-
-        log_debug(log_value(method));
-        log_debug(log_value(path));
-        log_debug(log_value(version));
-
-        uint64_t content_length = 0;
-        std::string transfer_encoding = "";
-
-        log_debug(LOG_LABEL "Starting to parse headers");
-
-        // Read headers
-        while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
-            std::string key;
-            std::string value;
-            // Read key
-            while (!((c = peek(reader, 0)) == ':' && peek(reader, 1) == ' ')) {
-                temp_buffer[index++] = c;
-                advance(reader, 1);
-            }
-            advance(reader, 2);
-            temp_buffer[index] = '\0';
-            key = std::string(temp_buffer);
-            index = 0;
-            // Read value
-            while (!((c = peek(reader, 0)) == '\r' && peek(reader, 1) == '\n')) {
-                temp_buffer[index++] = c;
-                advance(reader, 1);
-            }
-            advance(reader, 2);
-            temp_buffer[index] = '\0';
-            value = std::string(temp_buffer);
-            index = 0;
-            // Check if key is of interest
-            if (key == "Content-Length") {
-                std::istringstream iss(value);
-                iss >> content_length;
-            } else if (key == "Transfer-Encoding") {
-                transfer_encoding = value;
-            }
-        }
-        advance(reader, 2);
-        index = 0;
         // Handle request
         std::string filename = "";
         std::string key = "";
