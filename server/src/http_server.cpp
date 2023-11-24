@@ -279,6 +279,16 @@ void *http_thread(void *_arg) {
                             break;
                         }
                     }
+
+                    char message[] = "";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 200 Ok\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
                 } else if (transfer_encoding == "") {
                     // TODO - Didio: Implement Content-Length POST request
                 } else {
