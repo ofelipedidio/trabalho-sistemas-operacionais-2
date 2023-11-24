@@ -247,10 +247,9 @@ void *http_thread(void *_arg) {
                     flush(writer);
                 }
             } else if (method == "POST") {
-
                 if (transfer_encoding == "chunked") {
-                    // TODO - Didio: finish implementation
-                    FILE *fd = std::fopen(filename.c_str(), "w");
+                    std::string file = assemble_filename(username, filename);
+                    FILE *fd = std::fopen(file.c_str(), "w");
                     while (true) {
                         while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
                             temp_buffer[index++] = peek(reader, 0);
