@@ -1,3 +1,5 @@
+#include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +19,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <vector>
+#include <sys/stat.h>
 
 #include "../../client/include/logger.h"
 #include "../include/http_server.h"
@@ -185,8 +188,45 @@ void *http_thread(void *_arg) {
         log_debug(LOG_LABEL ">> " << log_value(filename) " : " log_value(key) " : " log_value(username));
 
         if (username.size() > 0) {
-            if (method == "GET") {
+            std::string user_dir = assemble_dir(username);
+            int mkdir_error = mkdir(user_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+            switch (mkdir_error) {
+                case EACCES:
+                    log_error("This user does not have permission to create the user's sync_dir");
+                    break;
+                case ENAMETOOLONG:
+                    log_error("Tried to create a sync_dir with a name too long (" log_value(user_dir) ")");
+                    break;
+                case ENOENT:
+                    log_error("A component of the prefix path of the user's sync_dir does not exist");
+                    break;
+                case ENOTDIR:
+                    log_error("A component of the prefix path of the user's sync_dir is not a directory");
+                    break;
 
+                default:
+                    break;
+            }
+
+            switch (mkdir_error) {
+                case ENOENT:
+                case ENOTDIR:
+                case ENAMETOOLONG:
+                case EACCES:
+                    char message[] = "The only Transfer-Encoding allowed is chunked";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 400 Bad Request\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
+                    exit(EXIT_FAILURE);
+                    break;
+            }
+
+            if (method == "GET") {
                 std::string file = assemble_filename(username, filename);
                 FileManager::file_bytes file_contents = FileManager::read_file(file);
                 if (file_contents.data != nullptr) {
