@@ -2,8 +2,19 @@
 #include "../include/network.h"
 #include "../include/http_server.h"
 #include <cstdint>
+#include <iostream>
 #include <sstream>
 #include <string>
+#include <signal.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include "../include/closeable.h"
+
+void sigint_handler(int param) {
+    std::cerr << "\n[SIGINT_HANDLER] Closing all sockets" << std::endl;
+    close_all_connections();
+    exit(1);
+}
 
 int main(int argc, char** argv) {
     uint16_t port = 54321;
