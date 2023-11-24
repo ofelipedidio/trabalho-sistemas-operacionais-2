@@ -264,16 +264,14 @@ void *http_thread(void *_arg) {
                         // TODO - Didio: Check if `iss >> hex >> var` parses hex numbers that don't start with "0x" (this code assumes it does)
                         iss >> std::hex >> chunk_length;
                         if (chunk_length > 0) {
-                            // Copy chunk to file
-                            for (uint64_t i = 0; i < chunk_length; i++) {
+                            for (uint64_t i = 0; i < content_length; i++) {
                                 uint64_t j;
-                                for (j = i; j < chunk_length && j-i < BUF_SIZE-1; j++) {
+                                for (j = i; j < content_length && j-i < BUF_SIZE; j++) {
                                     temp_buffer[j-i] = peek(reader, 0);
                                     advance(reader, 1);
                                 }
-                                temp_buffer[j-i] = '\0';
+                                std::fwrite(temp_buffer, sizeof(uint8_t), j-i, fd);
                                 i = j;
-                                std::fputs(temp_buffer, fd);
                             }
                         } else {
                             std::fclose(fd);
