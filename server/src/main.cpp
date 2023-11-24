@@ -17,7 +17,8 @@ void sigint_handler(int param) {
 }
 
 int main(int argc, char** argv) {
-    uint16_t port = 54321;
+    signal(SIGINT, sigint_handler);
+    uint16_t port = 4000;
     if (argc >= 2) {
         std::string s(argv[1]);
         std::istringstream iss(s);
