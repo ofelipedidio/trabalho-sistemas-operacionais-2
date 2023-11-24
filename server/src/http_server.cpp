@@ -101,13 +101,13 @@ inline void parse_request_header(
 }
 
 void *http_thread(void *_arg) {
-    // Read argument
+    // Read arguments
     struct thread_arguments *arg = (struct thread_arguments*) _arg;
     struct in_addr server_address = arg->server_address;
-    in_port_t server_port = arg->server_port;
+    in_port_t      server_port    = arg->server_port;
     struct in_addr client_address = arg->client_address;
-    in_port_t client_port = arg->client_port;
-    int sockfd = arg->sockfd;
+    in_port_t      client_port    = arg->client_port;
+    int            sockfd         = arg->sockfd;
     free(arg);
 
 #define LOG_LABEL "[" << inet_ntoa(client_address) << ":" << client_port << "] "
