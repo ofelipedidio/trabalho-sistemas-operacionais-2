@@ -25,6 +25,7 @@
 #include "../include/http_server.h"
 #include "../include/reader.h"
 #include "../include/file_manager.h"
+#include "../include/closeable.h"
 
 #define BUF_SIZE 1024
 #define LINE_CHAR_COUNT 32
@@ -419,6 +420,8 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
         listen(sockfd, 5);
     }
 
+    add_connection(sockfd);
+
     // Listen for clients
     while (true) {
         clilen = sizeof(struct sockaddr_in);
@@ -429,6 +432,8 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
             break;
         }
         log_debug("[LISTEN] Got a connection from (" << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << ")");
+
+        add_connection(newsockfd);
 
         // Construct thread arguments
         struct thread_arguments *arguments = (struct thread_arguments*) malloc(sizeof(struct thread_arguments));
