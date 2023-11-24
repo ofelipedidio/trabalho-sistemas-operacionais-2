@@ -383,15 +383,20 @@ void *http_thread(void *_arg) {
 
                 // TODO - Didio: Implement EXIT requests
             } else {
+                // If an unexpected method is requested, the connection is reset
                 write(writer, "HTTP/1.1 405 Method Not Allowed\r\n");
+                write(writer, "Connection: close\r\n");
                 write(writer, "\r\n");
                 flush(writer);
+                break;
             }
         } else {
-
+            // If no username is provided, the connection is reset
             write(writer, "HTTP/1.1 401 Unauthorized\r\n");
+            write(writer, "Connection: close\r\n");
             write(writer, "\r\n");
             flush(writer);
+            break;
         }
         log_debug(LOG_LABEL "Finished request");
     }
