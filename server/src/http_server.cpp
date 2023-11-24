@@ -290,7 +290,29 @@ void *http_thread(void *_arg) {
                     write(writer, message);
                     flush(writer);
                 } else if (transfer_encoding == "") {
-                    // TODO - Didio: Implement Content-Length POST request
+
+                    std::string file = assemble_filename(username, filename);
+                    FILE *fd = std::fopen(file.c_str(), "w");
+                    for (uint64_t i = 0; i < content_length; i++) {
+                        uint64_t j;
+                        for (j = i; j < content_length && j-i < BUF_SIZE; j++) {
+                            temp_buffer[j-i] = peek(reader, 0);
+                            advance(reader, 1);
+                        }
+                        std::fwrite(temp_buffer, sizeof(uint8_t), j-i, fd);
+                        i = j;
+                    }
+                    std::fclose(fd);
+
+                    char message[] = "";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 200 Ok\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
                 } else {
                     char message[] = "The only Transfer-Encoding allowed is chunked";
                     uint64_t message_length = strlen(message);
