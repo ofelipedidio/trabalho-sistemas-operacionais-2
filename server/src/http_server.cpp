@@ -1,3 +1,5 @@
+#include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -17,11 +19,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <vector>
+#include <sys/stat.h>
 
 #include "../../client/include/logger.h"
 #include "../include/http_server.h"
 #include "../include/reader.h"
 #include "../include/file_manager.h"
+#include "../include/closeable.h"
 
 #define BUF_SIZE 1024
 #define LINE_CHAR_COUNT 32
@@ -48,14 +52,62 @@ std::string assemble_filename(std::string& username, std::string filename) {
     return assemble_dir(username) + "/" + filename;
 }
 
+#define read_until(reader, buffer, buffer_size, index, cond, adv) while (!(cond)) { \
+    buffer[index++] = peek(reader, 0); \
+    advance(reader, 1); \
+} \
+advance(reader, adv); \
+buffer[index] = '\0'; \
+index = 0;
+
+template<int SIZE>
+inline void parse_request_header(
+        tcp_reader<SIZE> *reader,
+        char *temp_buffer,
+        std::string *method,
+        std::string *path,
+        std::string *version,
+        uint64_t *content_length,
+        std::string *transfer_encoding) {
+    int index = 0;
+
+    // Read request line
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == ' ', 1);
+    *method = std::string(temp_buffer);
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == ' ', 1);
+    *path = std::string(temp_buffer);
+    read_until(*reader, temp_buffer, SIZE, index, peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n', 2);
+    *version = std::string(temp_buffer);
+
+    // Read headers
+    while (!(peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n')) {
+        std::string header_key = "";
+        std::string header_value = "";
+
+        read_until(*reader, temp_buffer, BUF_SIZE, index, peek(*reader, 0) == ':' && peek(*reader, 1) == ' ', 2);
+        header_key = std::string(temp_buffer);
+        read_until(*reader, temp_buffer, BUF_SIZE, index, peek(*reader, 0) == '\r' && peek(*reader, 1) == '\n', 2);
+        header_value = std::string(temp_buffer);
+
+        // Check if key is of interest
+        if (header_key == "Content-Length") {
+            std::istringstream iss(header_value);
+            iss >> *content_length;
+        } else if (header_key == "Transfer-Encoding") {
+            *transfer_encoding = header_value;
+        }
+    }
+    advance(*reader, 2);
+}
+
 void *http_thread(void *_arg) {
-    // Read argument
+    // Read arguments
     struct thread_arguments *arg = (struct thread_arguments*) _arg;
     struct in_addr server_address = arg->server_address;
-    in_port_t server_port = arg->server_port;
+    in_port_t      server_port    = arg->server_port;
     struct in_addr client_address = arg->client_address;
-    in_port_t client_port = arg->client_port;
-    int sockfd = arg->sockfd;
+    in_port_t      client_port    = arg->client_port;
+    int            sockfd         = arg->sockfd;
     free(arg);
 
 #define LOG_LABEL "[" << inet_ntoa(client_address) << ":" << client_port << "] "
@@ -70,112 +122,34 @@ void *http_thread(void *_arg) {
     char temp_buffer[BUF_SIZE];
     int index;
 
-    perror("");
-
+    // HTTP request
     std::string method;
     std::string path;
     std::string version;
-
-    char c;
+    uint64_t content_length;
+    std::string transfer_encoding;
 
     while (ready(reader)) {
         log_debug(LOG_LABEL "Starting to read request");
-        
-        // Read method
-        while (peek(reader, 0) != ' ') {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 1);
-        temp_buffer[index] = '\0';
-        method = std::string(temp_buffer);
-        index = 0;
 
-
-        // Read path
-        while (peek(reader, 0) != ' ') {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 1);
-        temp_buffer[index] = '\0';
-        path = std::string(temp_buffer);
-        index = 0;
-
-        // Read version
-        while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
-            c = peek(reader, 0);
-            temp_buffer[index++] = c;
-            advance(reader, 1);
-        }
-        advance(reader, 2);
-        temp_buffer[index] = '\0';
-        version = std::string(temp_buffer);
-        index = 0;
-
-        uint64_t content_length = 0;
-        std::string transfer_encoding = "";
-
-        log_debug(LOG_LABEL "Starting to parse headers");
-
-        // Read headers
-        while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
-            std::string key;
-            std::string value;
-
-            // Read key
-            while (!((c = peek(reader, 0)) == ':' && peek(reader, 1) == ' ')) {
-                temp_buffer[index++] = c;
-                advance(reader, 1);
-            }
-            advance(reader, 2);
-            temp_buffer[index] = '\0';
-            key = std::string(temp_buffer);
-            index = 0;
-
-            // Read value
-            while (!((c = peek(reader, 0)) == '\r' && peek(reader, 1) == '\n')) {
-                temp_buffer[index++] = c;
-                advance(reader, 1);
-            }
-            advance(reader, 2);
-            temp_buffer[index] = '\0';
-            value = std::string(temp_buffer);
-            index = 0;
-
-            // Check if key is of interest
-            if (key == "Content-Length") {
-                std::istringstream iss(value);
-                iss >> content_length;
-            } else if (key == "Transfer-Encoding") {
-                transfer_encoding = value;
-            }
-        }
-        advance(reader, 2);
-        index = 0;
+        parse_request_header(&reader, temp_buffer, &method, &path, &version, &content_length, &transfer_encoding);
 
         // Handle request
         std::string filename = "";
         std::string key = "";
         std::string username = "";
         int i = 0;
-
         while (i < path.size() && path[i] == '/') {
             i++;
         }
-
         while (i < path.size() && !(path[i] == '?')) {
             temp_buffer[index++] = path[i++];
         }
         temp_buffer[index] = '\0';
         filename = std::string(temp_buffer);
         index = 0;
-
         if (i < path.size()) {
             i++;
-
             while (i < path.size()) {
                 while (i < path.size() && !(path[i] == '=' || path[i] == '&')) {
                     temp_buffer[index++] = path[i++];
@@ -183,10 +157,8 @@ void *http_thread(void *_arg) {
                 temp_buffer[index] = '\0';
                 key = std::string(temp_buffer);
                 index = 0;
-
                 if (i < path.size()) {
                     i++;
-
                     while (i < path.size() && path[i] != '&') {
                         temp_buffer[index++] = path[i++];
                     }
@@ -195,7 +167,6 @@ void *http_thread(void *_arg) {
                         username = std::string(temp_buffer);
                     }
                     index = 0;
-
                     if (i < path.size()) {
                         i++;
                     }
@@ -210,8 +181,45 @@ void *http_thread(void *_arg) {
         log_debug(LOG_LABEL ">> " << log_value(filename) " : " log_value(key) " : " log_value(username));
 
         if (username.size() > 0) {
-            if (method == "GET") {
+            std::string user_dir = assemble_dir(username);
+            int mkdir_error = mkdir(user_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+            switch (mkdir_error) {
+                case EACCES:
+                    log_error("This user does not have permission to create the user's sync_dir");
+                    break;
+                case ENAMETOOLONG:
+                    log_error("Tried to create a sync_dir with a name too long (" log_value(user_dir) ")");
+                    break;
+                case ENOENT:
+                    log_error("A component of the prefix path of the user's sync_dir does not exist");
+                    break;
+                case ENOTDIR:
+                    log_error("A component of the prefix path of the user's sync_dir is not a directory");
+                    break;
 
+                default:
+                    break;
+            }
+
+            switch (mkdir_error) {
+                case ENOENT:
+                case ENOTDIR:
+                case ENAMETOOLONG:
+                case EACCES:
+                    char message[] = "The only Transfer-Encoding allowed is chunked";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 400 Bad Request\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
+                    exit(EXIT_FAILURE);
+                    break;
+            }
+
+            if (method == "GET") {
                 std::string file = assemble_filename(username, filename);
                 FileManager::file_bytes file_contents = FileManager::read_file(file);
                 if (file_contents.data != nullptr) {
@@ -239,10 +247,9 @@ void *http_thread(void *_arg) {
                     flush(writer);
                 }
             } else if (method == "POST") {
-
                 if (transfer_encoding == "chunked") {
-                    // TODO - Didio: finish implementation
-                    FILE *fd = std::fopen(filename.c_str(), "w");
+                    std::string file = assemble_filename(username, filename);
+                    FILE *fd = std::fopen(file.c_str(), "w");
                     while (true) {
                         while (!(peek(reader, 0) == '\r' && peek(reader, 1) == '\n')) {
                             temp_buffer[index++] = peek(reader, 0);
@@ -257,16 +264,14 @@ void *http_thread(void *_arg) {
                         // TODO - Didio: Check if `iss >> hex >> var` parses hex numbers that don't start with "0x" (this code assumes it does)
                         iss >> std::hex >> chunk_length;
                         if (chunk_length > 0) {
-                            // Copy chunk to file
-                            for (uint64_t i = 0; i < chunk_length; i++) {
+                            for (uint64_t i = 0; i < content_length; i++) {
                                 uint64_t j;
-                                for (j = i; j < chunk_length && j-i < BUF_SIZE-1; j++) {
+                                for (j = i; j < content_length && j-i < BUF_SIZE; j++) {
                                     temp_buffer[j-i] = peek(reader, 0);
                                     advance(reader, 1);
                                 }
-                                temp_buffer[j-i] = '\0';
+                                std::fwrite(temp_buffer, sizeof(uint8_t), j-i, fd);
                                 i = j;
-                                std::fputs(temp_buffer, fd);
                             }
                         } else {
                             std::fclose(fd);
@@ -274,8 +279,40 @@ void *http_thread(void *_arg) {
                             break;
                         }
                     }
+
+                    char message[] = "";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 200 Ok\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
                 } else if (transfer_encoding == "") {
-                    // TODO - Didio: Implement Content-Length POST request
+
+                    std::string file = assemble_filename(username, filename);
+                    FILE *fd = std::fopen(file.c_str(), "w");
+                    for (uint64_t i = 0; i < content_length; i++) {
+                        uint64_t j;
+                        for (j = i; j < content_length && j-i < BUF_SIZE; j++) {
+                            temp_buffer[j-i] = peek(reader, 0);
+                            advance(reader, 1);
+                        }
+                        std::fwrite(temp_buffer, sizeof(uint8_t), j-i, fd);
+                        i = j;
+                    }
+                    std::fclose(fd);
+
+                    char message[] = "";
+                    uint64_t message_length = strlen(message);
+                    write(writer, "HTTP/1.1 200 Ok\r\n");
+                    write(writer, "Content-Length: ");
+                    write(writer, message_length);
+                    write(writer, "\r\n");
+                    write(writer, "\r\n");
+                    write(writer, message);
+                    flush(writer);
                 } else {
                     char message[] = "The only Transfer-Encoding allowed is chunked";
                     uint64_t message_length = strlen(message);
@@ -346,15 +383,20 @@ void *http_thread(void *_arg) {
 
                 // TODO - Didio: Implement EXIT requests
             } else {
+                // If an unexpected method is requested, the connection is reset
                 write(writer, "HTTP/1.1 405 Method Not Allowed\r\n");
+                write(writer, "Connection: close\r\n");
                 write(writer, "\r\n");
                 flush(writer);
+                break;
             }
         } else {
-
+            // If no username is provided, the connection is reset
             write(writer, "HTTP/1.1 401 Unauthorized\r\n");
+            write(writer, "Connection: close\r\n");
             write(writer, "\r\n");
             flush(writer);
+            break;
         }
         log_debug(LOG_LABEL "Finished request");
     }
@@ -404,6 +446,8 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
         listen(sockfd, 5);
     }
 
+    add_connection(sockfd);
+
     // Listen for clients
     while (true) {
         clilen = sizeof(struct sockaddr_in);
@@ -414,6 +458,8 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
             break;
         }
         log_debug("[LISTEN] Got a connection from (" << inet_ntoa(cli_addr.sin_addr) << ":" << ntohs(cli_addr.sin_port) << ")");
+
+        add_connection(newsockfd);
 
         // Construct thread arguments
         struct thread_arguments *arguments = (struct thread_arguments*) malloc(sizeof(struct thread_arguments));
