@@ -41,15 +41,17 @@ int main(int argc, char **argv) {
     Network::download_file(username, std::string("didio.txt"));
     
     
-    // Start FS notify thread
-    // TODO - Didio: Arrumar
-    FSNotify::init(username);
+  
 
     FileManager::delete_file("asd");
     
 
     // TODO - Didio: Start app
     App::init(username);
+
+      // Start FS notify thread
+    // TODO - Didio: Arrumar
+    FSNotify::init(username);
 
     while (true) {
         
