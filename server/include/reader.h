@@ -51,6 +51,7 @@ bool ready(struct tcp_reader<SIZE>& reader) {
             }
         }
     }
+    return false;
 }
 
 template<int SIZE>
@@ -129,7 +130,7 @@ void write(struct tcp_writer<SIZE>& writer, const char *string) {
 
 template<int SIZE>
 void write(struct tcp_writer<SIZE>& writer, uint8_t *buf, uint64_t len) {
-    int i = 0;
+    long unsigned int i = 0;
     while (i < len) {
         if (writer.index >= SIZE) {
             flush(writer);

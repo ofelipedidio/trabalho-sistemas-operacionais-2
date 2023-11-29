@@ -138,7 +138,7 @@ void *http_thread(void *_arg) {
         std::string filename = "";
         std::string key = "";
         std::string username = "";
-        int i = 0;
+        long unsigned int i = 0;
         while (i < path.size() && path[i] == '/') {
             i++;
         }

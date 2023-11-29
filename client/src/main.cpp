@@ -53,9 +53,7 @@ int main(int argc, char **argv) {
     // TODO - Didio: Arrumar
     FSNotify::init(username);
 
-    while (true) {
-        
-    }
+    Cli::init();
 
     return 0;
 }

@@ -23,7 +23,7 @@ bool tcp_dump(std::string ip, uint16_t port) {
 
     int sockfd, newsockfd, n;
     socklen_t clilen;
-    char buffer[256];
+    char buffer[BUF_SIZE];
     struct sockaddr_in serv_addr, cli_addr;
 
     log_debug(log_value(n));

@@ -1,16 +1,20 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <semaphore.h>
+#include <pthread.h>
 #include "file_manager.h"
+#include "network.h"
+#include "async_queue.h"
 
 namespace App {
 
     enum task_type {
-        TASK_LIST_FILES = 1,
+        TASK_LIST_SERVER = 1,
         TASK_UPLOAD = 2,
         TASK_DOWNLOAD = 3,
         TASK_DELETE = 4,
-        TASK_EXIT = 5,
+        TASK_GET_SYNC = 5
     };
 
     typedef struct app_task {
@@ -23,6 +27,9 @@ namespace App {
 
     } app_task;
 
+    AsyncQueue::async_queue<app_task> task_queue;
+    sem_t sync_cli;
+
     void init(std::string username);
     void notify_new_file(std::string filename);
     void notify_modified(std::string filename);
@@ -32,6 +39,10 @@ namespace App {
     void taks_done(uint8_t* mem);
 
     std::vector<file_description> list_server();
+    void upload_file(std::string path);
+    void download_file(std::string filename);
+    void delete_file(std::string path);
+    void get_sync_dir(std::string username);
 
 
 }
