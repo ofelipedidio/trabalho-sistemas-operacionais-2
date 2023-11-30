@@ -44,14 +44,12 @@ namespace FSNotify {
 
             while (true)
             {
-                bytesRead = read(Fd, buffer, sizeof(buffer)); // Felipe K - read() tem suporte pra signal, pode ser util pra ignorar algum evento
+                bytesRead = read(Fd, buffer, sizeof(buffer));
                 if (bytesRead == -1) {
                     std::cerr << "read error\n";
                     close(Fd);
                     exit(EXIT_FAILURE);
                 }
-                //FELIPE K - da pra colocar um teste de um semaforo aq e simplemente ignorar o evento
-                // ou então   
                 sem_wait(&enable_notify);  //espera o fim do write para enviar notificações
                 for (char *p = buffer; p < buffer + bytesRead;) {
                     struct inotify_event *event = reinterpret_cast<struct inotify_event *>(p);
