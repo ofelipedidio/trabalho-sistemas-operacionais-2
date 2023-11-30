@@ -1,5 +1,5 @@
-#include <atomic>
 #include <cstdint>
+#include <atomic>
 #include <cstring>
 #include <iostream>
 #include <optional>

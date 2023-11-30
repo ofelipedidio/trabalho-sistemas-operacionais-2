@@ -1,6 +1,6 @@
 #!/bin/bash
 
+clear
 make compile
 cd bin
-clear
 ./server $1
