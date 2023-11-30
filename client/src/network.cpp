@@ -60,7 +60,7 @@ namespace Network {
                     case TASK_EXIT:
                         break;
                 }
-                done_queue.push(task);
+                done_queue.push(task.task_id, task);
             }
 
             pthread_exit(nullptr);
@@ -109,7 +109,7 @@ namespace Network {
      */
     int upload_file(std::string username, std::string path) {
         int task_id = last_task_id++;
-        __internal::task_queue.push({
+        __internal::task_queue.push(task_id, {
                 TASK_UPLOAD, 
                 task_id, 
                 username,
@@ -125,7 +125,7 @@ namespace Network {
      */
     int download_file(std::string username, std::string path) {
         int task_id = last_task_id++;
-        __internal::task_queue.push({
+        __internal::task_queue.push(task_id, {
                 TASK_DOWNLOAD, 
                 task_id, 
                 username,
@@ -141,7 +141,7 @@ namespace Network {
      */
     int delete_file(std::string username, std::string path) {
         int task_id = last_task_id++;
-        __internal::task_queue.push({
+        __internal::task_queue.push(task_id, {
                 TASK_DELETE, 
                 task_id, 
                 username,
@@ -157,7 +157,7 @@ namespace Network {
      */
     int client_exit(std::string username) {
         int task_id = last_task_id++;
-        __internal::task_queue.push({
+        __internal::task_queue.push(task_id, {
                 TASK_EXIT, 
                 task_id, 
                 username,
@@ -173,7 +173,7 @@ namespace Network {
      */
     int list_files(std::string username, std::string path) {
         int task_id = last_task_id++;
-        __internal::task_queue.push({
+        __internal::task_queue.push(task_id, {
                 TASK_LIST_FILES, 
                 task_id, 
                 username,
@@ -210,6 +210,34 @@ namespace Network {
      */
     void get_task(network_task *task) {
         network_task done_task = __internal::done_queue.pop();
+
+        // Copy the data from the done task to task
+        task->type = done_task.type;
+        task->task_id = done_task.task_id;
+        task->username = done_task.username;
+        task->filename = done_task.filename;
+        task->content = done_task.content;
+        task->files = done_task.files;
+    }
+    
+    bool try_get_task_by_id(int task_id, network_task *task) {
+        std::optional<network_task> _done_task = __internal::done_queue.try_pop_by_id(task_id);
+        if (_done_task) {
+            network_task done_task = _done_task.value();
+            task->type = done_task.type;
+            task->task_id = done_task.task_id;
+            task->username = done_task.username;
+            task->filename = done_task.filename;
+            task->content = done_task.content;
+            task->files = done_task.files;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    void get_task(int task_id, network_task *task) {
+        network_task done_task = __internal::done_queue.pop_by_id(task_id);
 
         // Copy the data from the done task to task
         task->type = done_task.type;

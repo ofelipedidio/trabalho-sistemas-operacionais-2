@@ -32,4 +32,7 @@ namespace Network {
 
     bool try_get_task(network_task *task);
     void get_task(network_task *task);
+    
+    bool try_get_task_by_id(int task_id, network_task *task);
+    void get_task(int task_id, network_task *task);
 }
