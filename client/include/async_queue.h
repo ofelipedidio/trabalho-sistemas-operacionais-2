@@ -30,7 +30,7 @@ namespace AsyncQueue {
                     sem_wait(&this->mutex);
                     item_t task = this->queue.front().second;
                     this->queue.erase(this->queue.begin());
-                    sem_wait(&this->mutex);
+                    sem_post(&this->mutex);
                     sem_post(&this->mutex);
                     return task;
                 }
