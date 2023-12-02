@@ -38,9 +38,7 @@ namespace Network {
             network_task task;
 
             while (true) {
-                log_debug("Task queue size = " << task_queue.size());
                 task = task_queue.pop();
-                log_debug("(B) Task queue size = " << task_queue.size());
                 
                 // TODO - Didio: Process the task
                 switch (task.type) {
@@ -49,16 +47,13 @@ namespace Network {
                     case TASK_UPLOAD:
                         break;
                     case TASK_DOWNLOAD:
-                        {
-
-                        }
-
                         break;
                     case TASK_DELETE:
                         break;
                     case TASK_EXIT:
                         break;
                 }
+
                 done_queue.push(task.task_id, task);
             }
 
