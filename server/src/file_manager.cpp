@@ -1,3 +1,6 @@
+#include "../include/file_manager.h"
+
+#include <cerrno>
 #include <cstdint>
 #include <sys/types.h>
 #include <fstream>
@@ -6,74 +9,126 @@
 #include <chrono>
 #include <iostream>
 #include <sys/stat.h>
-#include <semaphore.h>
-
-#include "../include/file_manager.h"
-
 
 namespace FileManager{
-
-    bool write_file(std::string path, uint8_t *buf){ //true em caso de sucesso
-        std::ofstream file;
-        //TODO: Felipe K - garantir que inotify não pegue oq esta sendo escrito como algo novo
-
-        // Felipe K - por enquanto inotify não manda eventos enquanto o write estiver ativo
-        // porém vai enviar a notificação após o fim do write
-        file.open(path, std::ios::out | std::ios::trunc);// opens file for output and deletes what was already there
-        if(file.is_open()){
-            file << buf;
-            file.close();
-            return true;
+    bool write_file(std::string path, uint8_t *buf, uint64_t length){ //true em caso de sucesso
+        // Open the file
+        FILE *file = fopen(path.c_str(), "w");
+        if (file == NULL) {
+            std::cerr << "ERROR: [writing file `" << path << "`] fopen failed with errno = `" << errno << "`" << std::endl;
+            return false;
         }
-        return false;
+
+        // Write the contents of the buffer into the file
+        size_t write_amount = 0;
+        while (write_amount < length) {
+            size_t write_size = fwrite(
+                    buf + write_amount,
+                    sizeof(uint8_t), 
+                    length - write_amount,
+                    file);
+            if (write_size < 0) {
+                std::cerr << "ERROR: [writing file `" << path << "`] fwrite failed with errno = `" << errno << "`" << std::endl;
+                fclose(file);
+                return false;
+            }
+            write_amount += write_size;
+        }
+
+        // Close the file
+        fclose(file);
+
+        return true;
     }
 
-    file_bytes read_file(std::string path){
-        std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
-        if (!file.is_open()) //retorna um ponteiro com 0 caso não consiga acessar o arquivo
-        {
-            return { nullptr, 0 };
+    bool read_file(std::string path, file_metadata_t *out_metadata){
+        // Open the file
+        FILE *file = fopen(path.c_str(), "r");
+        if (file == NULL) {
+            std::cerr << "ERROR: [reading file `" << path << "`] fopen failed with errno = `" << errno << "`" << std::endl;
+            return false;
         }
-        std::streampos size = file.tellg();
-        u_int8_t *data = (u_int8_t*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
-        file.seekg (0, std::ios::beg);
-        file.read ((char*)data, size);
-        file.close();
-        return { data, static_cast<uint64_t>(size) };
+
+        // Get file length
+        uint64_t length;
+        fseek(file, 0, SEEK_END);
+        length = ftell(file);
+        fseek(file, 0, SEEK_SET); // Reset file to read from beginning
+
+        // Allocate memory for the file contents
+        uint8_t *bytes = (uint8_t*) malloc(length * sizeof(uint8_t));
+        if (bytes == NULL) {
+            std::cerr << "ERROR: [reading file `" << path << "`] malloc failed with errno = `" << errno << "`" << std::endl;
+            fclose(file);
+            return false;
+        }
+
+        // Read bytes from file into the output buffer
+        size_t read_amount = 0;
+        while (read_amount < length) {
+            size_t read_size = fread(
+                    bytes + read_amount,
+                    sizeof(uint8_t),
+                    length - read_amount,
+                    file);
+            if (read_size < 0) {
+                std::cerr << "ERROR: [reading file `" << path << "`] fread with errno = `" << errno << "`" << std::endl;
+                fclose(file);
+                return false;
+            }
+            read_amount += read_size;
+        }
+
+        // Get last modified time of the file
+        struct stat _stat;
+        if (stat(path.c_str(), &_stat) != 0) {
+            std::cerr << "ERROR: [reading file `" << path << "`] stat failed with errno = `" << errno << "`" << std::endl;
+            return false;
+        }
+        uint64_t mac = _stat.st_mtime;
+
+        // Close the file
+        fclose(file);
+
+        // Return
+        *out_metadata = {length, mac, bytes};
+        return true;
     }
 
-    bool delete_file(std::string path){//true em caso de sucesso 
-        if (remove(path.c_str()) == 0)
-        {
-            return true;
+    bool delete_file(std::string path) {
+        if (remove(path.c_str()) != 0) {
+            std::cerr << "ERROR: [deleting file `" << path << "`] remove failed with errno = `" << errno << "`" << std::endl;
+            return false;
         }
-        return false;
+
+        return true;
     }
 
-    std::vector<file_description> list_files(std::string path){//retorna um vetor vazio caso path não seja diretório
-        std::vector<file_description> files_list;
+    bool list_files(std::string path, std::vector<file_description_t> *out_files) {
+        std::vector<file_description_t> files_list = std::vector<file_description_t>();
 
-        if (std::filesystem::is_directory(path))
-        {
-            for (const auto& entry : std::filesystem::directory_iterator(path))
-            {
-                if(std::filesystem::is_regular_file(entry)){//só retorna informações de arquivos que não sejam diretórios
-                    struct stat result;
-                    std::string filename = entry.path().string();
-                    if (stat(filename.c_str(), &result)==0)
-                    {
-                        auto mod_time = result.st_mtime;
-                        uint64_t modified_time = mod_time;
-                        files_list.emplace_back(filename, modified_time);
-                    } else {
-                        exit(69);
-                    }
+        if (!std::filesystem::is_directory(path)) {
+            std::cout << "ERROR [listing files `" << path << "`] Path is not a directory" << std::endl;
+            return false;
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(path)) {
+            if (std::filesystem::is_regular_file(entry)) {
+                struct stat result;
+                std::string filename = entry.path().string();
+                if (stat(filename.c_str(), &result) == 0) {
+                    auto mod_time = result.st_mtime;
+                    uint64_t modified_time = mod_time;
+                    files_list.push_back({filename, modified_time});
+                } else {
+                    std::cout << "ERROR [listing files `" << path << "`] Could not stat file `" << filename << "`" << std::endl;
+                    return false;
                 }
             }
+        }
 
-        }        
-
-        return files_list;
+        *out_files = files_list;
+        return true;
     }
 }
 

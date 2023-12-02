@@ -1,0 +1,30 @@
+[main.cpp]
+- http_server.cpp
+- closeable.cpp
+
+[server.cpp]
+- client.cpp
+- protocol.cpp
+- file_manager.cpp
+- closeable.cpp
+
+[client.cpp]
+- connection.cpp
+
+[protocol.cpp]
+- connection.cpp
+- client.cpp
+- file_manager.h
+
+[connection.cpp]
+- reader.cpp
+- writer.cpp
+
+[closeable.cpp]
+
+[file_manager.cpp]
+
+[reader.cpp]
+
+[writer.cpp]
+
