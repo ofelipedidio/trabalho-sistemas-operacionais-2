@@ -19,4 +19,4 @@ connection_t *conn_new(struct in_addr server_address, in_port_t server_port, str
 
 void conn_free(connection_t *connection);
 
-#endif // CONNECTION
+#endif // !CONNECTION

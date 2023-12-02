@@ -2,7 +2,7 @@
 #include <sstream>
 #include <signal.h>
 
-#include "../include/http_server.h"
+#include "../include/server.h"
 #include "../include/closeable.h"
 
 int main(int argc, char** argv) {

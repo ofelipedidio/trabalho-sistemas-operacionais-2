@@ -6,8 +6,10 @@
 #include <vector>
 
 #include "../include/connection.h"
-#include "../include/server.h"
+#include "../include/client.h"
 #include "../include/file_manager.h"
+#include "../include/reader.h"
+#include "../include/writer.h"
 
 bool read_header(connection_t *connection, packet_header_t *header) {
     packet_header_t _header;
@@ -36,7 +38,7 @@ bool handshake(connection_t *connection, std::string *username) {
     return true;
 }
 
-bool receive_packet(connection_t *connection, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t *bytes) {
+bool receive_packet(connection_t *connection, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t **bytes) {
     if (!read_header(connection, header)) {
         return false;
     }
@@ -54,8 +56,8 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
         case PACKET_TYPE_UPLOAD:
             read_string(connection->reader, filename);
             read_u64(connection->reader, length);
-            bytes = (uint8_t*) malloc(sizeof(uint8_t)*(*length));
-            read_bytes(connection->reader, bytes, *length);
+            *bytes = (uint8_t*) malloc(sizeof(uint8_t)*(*length));
+            read_bytes(connection->reader, *bytes, *length);
             break;
         case PACKET_TYPE_DELETE:
             read_string(connection->reader, filename);

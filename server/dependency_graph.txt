@@ -2,18 +2,18 @@
 - http_server.cpp
 - closeable.cpp
 
-[http_server.cpp]
-- server.cpp
+[server.cpp]
+- client.cpp
 - protocol.cpp
 - file_manager.cpp
 - closeable.cpp
 
-[server.cpp]
+[client.cpp]
 - connection.cpp
 
 [protocol.cpp]
 - connection.cpp
-- server.cpp
+- client.cpp
 - file_manager.h
 
 [connection.cpp]

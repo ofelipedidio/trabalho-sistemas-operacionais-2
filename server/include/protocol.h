@@ -4,7 +4,7 @@
 #include <cstdint>
 
 #include "../include/connection.h"
-#include "../include/server.h"
+#include "../include/client.h"
 #include "../include/file_manager.h"
 
 #define PROTOCOL_VERSION 1
@@ -29,7 +29,7 @@ bool read_header(connection_t *connection, packet_header_t *header);
 
 bool handshake(connection_t *connection, std::string *username);
 
-bool receive_packet(client_t *client, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t *bytes);
+bool receive_packet(client_t *client, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t **bytes);
 
 void respond_download_success(connection_t *connection, uint8_t *buf, uint64_t length);
 

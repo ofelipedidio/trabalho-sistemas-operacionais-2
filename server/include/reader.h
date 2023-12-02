@@ -6,10 +6,6 @@
 #include <iostream>
 #include <sys/socket.h>
 
-/*  ##################
- *  #     READER     #
- *  ################## */
-
 template<int SIZE>
 struct tcp_reader {
     int sockfd;

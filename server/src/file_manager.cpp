@@ -119,7 +119,7 @@ namespace FileManager{
                 if (stat(filename.c_str(), &result) == 0) {
                     auto mod_time = result.st_mtime;
                     uint64_t modified_time = mod_time;
-                    files_list.emplace_back(filename, modified_time);
+                    files_list.push_back({filename, modified_time});
                 } else {
                     std::cout << "ERROR [listing files `" << path << "`] Could not stat file `" << filename << "`" << std::endl;
                     return false;

@@ -1,112 +1,180 @@
 #include "../include/server.h"
 
-#include <algorithm>
+#include <asm-generic/errno.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <semaphore.h>
-#include <unordered_map>
+#include <iomanip>
+#include <iostream>
+#include <optional>
+#include <pthread.h>
+#include <sstream>
 #include <string>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h> 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <vector>
+#include <sys/stat.h>
 
-#include "../include/connection.h"
+#include "../include/client.h"
+#include "../include/protocol.h"
+#include "../include/file_manager.h"
+#include "../include/closeable.h"
 
-#define MAX_ACTIVE_CONNECTIONS 2
+#define BUF_SIZE 1024
+#define LINE_CHAR_COUNT 32
 
-std::unordered_multimap<std::string, client_t*> clients;
+void *client_handler_thread(void *_arg) {
+    client_t *client = (client_t*) _arg;
 
-/*
- * For a client to be considered active, it has to be considered active 
- * by the application and have an active TCP connection
- */
-bool _client_is_valid(client_t *client) {
-    if (!client->active) {
-        return false;
-    }
+    // Variable declaration
+    std::string client_dir;
+    packet_header_t header;
+    std::string filename;
+    uint64_t length;
+    uint8_t *bytes;
+    FileManager::file_metadata_t file_metadata;
+    std::vector<FileManager::file_description_t> files;
+    bool running;
+    file_event_t file_event;
 
-    uint32_t error_code;
-    uint32_t error_code_size = sizeof(error_code);
-    getsockopt(client->connection->sockfd, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
-    
-    if (error_code != 0) {
-        return false;
-    }
+    // Variable initialization
+    client_dir = "sync_dir_" + client->username;
+    running = true;
 
-    return true;
-}
+    // Server loop
+    while (running) {
+        bool receive_success = receive_packet(client, &header, &filename, &length, &bytes);
+        if (!receive_success) {
+            running = false;
+            break;
+        }
 
-bool can_connect(std::string username) {
-    auto range = clients.equal_range(username);
-
-    for (auto it = range.first; it != range.second; ) {
-        if (_client_is_valid(it->second)) {
-            client_free(it->second);
-            clients.erase(it);
-        } else {
-            it++;
+        switch (header.packet_type) {
+            case PACKET_TYPE_DOWNLOAD:
+                if (FileManager::read_file(client_dir + "/" + filename, &file_metadata)) {
+                    respond_download_success(client->connection, file_metadata.contents, file_metadata.length);
+                    free(file_metadata.contents);
+                } else {
+                    respond_download_fail(client->connection);
+                }
+                break;
+            case PACKET_TYPE_UPLOAD:
+                if (FileManager::write_file(client_dir + "/" + filename, bytes, length)) {
+                    respond_upload_success(client->connection);
+                    client_broadcast_file_modified(client->username, filename);
+                } else {
+                    respond_upload_fail(client->connection);
+                }
+                break;
+            case PACKET_TYPE_DELETE:
+                if (FileManager::delete_file(client_dir + "/" + filename)) {
+                    respond_delete_success(client->connection);
+                    client_broadcast_file_deleted(client->username, filename);
+                } else {
+                    respond_delete_fail(client->connection);
+                }
+                break;
+            case PACKET_TYPE_LIST_FILES:
+                if (FileManager::list_files(client_dir, &files)) {
+                    respond_list_files_success(client->connection, files);
+                    files.clear();
+                } else {
+                    respond_list_files_fail(client->connection);
+                }
+                break;
+            case PACKET_TYPE_UPDATE:
+                if (client_get_event(client, &file_event)) {
+                    respond_update_some(client->connection, file_event);
+                } else {
+                    respond_update_none(client->connection);
+                }
+                break;
+            default:
+                running = false;
+                break;
         }
     }
 
-    return clients.count(username) < MAX_ACTIVE_CONNECTIONS;
+    // Invalidate client and exit
+    client->active = false;
+    pthread_exit(nullptr);
+    return nullptr;
 }
 
-client_t *client_new(std::string username, connection_t *connection) {
-    // Check wether this client has exceded the maximum 
-    // allowed limit of connections per client
-    if (!can_connect(username)) {
-        return nullptr;
+void handle_connection(connection_t *connection) {
+    add_connection(connection->sockfd);
+
+    // Perform handshake
+    std::string username;
+    if (!handshake(connection, &username)) {
+        close(connection->sockfd);
+        conn_free(connection);
+        return;
     }
 
-    // Allocate memory for the client
-    client_t *client = (client_t*) malloc(sizeof(client_t));
-    
-    // Initialize the client's variables
-    client->username = username;
-    client->connection = connection;
-    client->active = true;
-    client->pending_events = std::queue<file_event_t>();
-    sem_init(&client->mutex, 0, 1);
+    // Create client
+    client_t *client = client_new(username, connection);
 
-    // Insert the new client into the client list
-    clients.insert({username, client});
-    return client;
+    // Create thread
+    pthread_t thread;
+    pthread_create(&thread, NULL, client_handler_thread, client);
 }
 
-void client_free(client_t *client) {
-    close(client->connection->sockfd);
-    conn_free(client->connection);
-    free(client);
-}
+bool tcp_dump_1(std::string ip, uint16_t port) {
+    int listen_sockfd;
+    int connection_sockfd;
+    socklen_t client_length;
+    struct sockaddr_in server_address;
+    struct sockaddr_in client_address;
 
-void client_broadcast_file_modified(std::string username, std::string filename) {
-    auto range = clients.equal_range(username);
-    for (auto it = range.first; it != range.second; ) {
-        client_t *client = it->second;
-        sem_wait(&client->mutex);
-        client->pending_events.push({event_file_modified, filename});
-        sem_post(&client->mutex);
+    // Initialize the socket
+    listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sockfd == -1) {
+        return false;
     }
-}
 
-void client_broadcast_file_deleted(std::string username, std::string filename) {
-    auto range = clients.equal_range(username);
-    for (auto it = range.first; it != range.second; ) {
-        client_t *client = it->second;
-        sem_wait(&client->mutex);
-        client->pending_events.push({event_file_deleted, filename});
-        sem_post(&client->mutex);
-    }
-}
+    // Bind the socket
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(port);
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    bzero(&(server_address.sin_zero), 8);
 
-bool client_get_event(client_t *client, file_event_t *out_event) {
-    sem_wait(&client->mutex);
-    if (client->pending_events.size() > 0) {
-        file_event_t event = client->pending_events.front();
-        client->pending_events.pop();
-        *out_event = event;
-        sem_post(&client->mutex);
-        return true;
+    if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+        return false;
     }
-    sem_post(&client->mutex);
-    return false;
+
+    // Setup listen queue
+    listen(listen_sockfd, 5);
+
+    // Register server socket into the closeable connection list
+    add_connection(listen_sockfd);
+
+    // Listen for clients
+    while (true) {
+        client_length = sizeof(struct sockaddr_in);
+        connection_sockfd = accept(listen_sockfd, (struct sockaddr *) &client_address, &client_length);
+        if (connection_sockfd == -1) {
+            break;
+        }
+
+        connection_t *connection = conn_new(
+                server_address.sin_addr,
+                ntohs(server_address.sin_port),
+                client_address.sin_addr,
+                ntohs(client_address.sin_port),
+                connection_sockfd);
+
+        handle_connection(connection);
+    }
+
+    close(listen_sockfd);
+    return true; 
 }
 
