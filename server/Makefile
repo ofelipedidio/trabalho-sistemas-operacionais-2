@@ -4,7 +4,6 @@ CXX = g++
 CXXFLAGS = -Wall -g -fsanitize=leak
 
 # Project files
-HEADERS = $(wildcard include/*.h)
 SRC = $(wildcard src/*.cpp)
 OBJ = $(patsubst src/%.cpp, build/%.o, $(SRC))
 
@@ -25,8 +24,6 @@ build/%.o: src/%.cpp include/%.h |build
 # Compile `.o` to binary
 bin/server: $(OBJ) |bin
 	$(CXX) -o bin/server $(OBJ)
-
-include/main.h:
 
 # Rules that are not attached to files
 .PHONY: compile clean test
