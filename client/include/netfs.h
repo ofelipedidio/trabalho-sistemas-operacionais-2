@@ -1,12 +1,12 @@
-#ifndef FILE_MANAGER
-#define FILE_MANAGER
+#ifndef NETFS
+#define NETFS
 
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace FileManager {
+namespace netfs {
     typedef struct {
         std::string filename;
         uint64_t mac;
@@ -40,4 +40,4 @@ namespace FileManager {
     bool list_files(std::string path, std::vector<file_description_t> *out_files);
 }
 
-#endif // !FILE_MANAGER
+#endif // !NETFS

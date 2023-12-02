@@ -38,3 +38,5 @@ bool read_u64(struct tcp_reader& reader, uint64_t *value);
 bool read_bytes(struct tcp_reader& reader, uint8_t *val, uint64_t length);
 
 #endif // !READER 
+
+

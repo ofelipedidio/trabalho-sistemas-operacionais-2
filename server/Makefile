@@ -1,7 +1,7 @@
 CXX = g++
 # -Wall: Generate all warning
 # -g: Keep debugging symbols
-CXXFLAGS = -Wall -g
+CXXFLAGS = -Wall -g -fsanitize=leak
 
 # Project files
 SRC = $(wildcard src/*.cpp)
@@ -17,10 +17,8 @@ bin:
 build:
 	mkdir -p build
 
-include/%.h: src/%.cpp
-
 # Compile `.cpp` to `.o`
-build/%.o: src/%.cpp |build
+build/%.o: src/%.cpp include/%.h |build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Compile `.o` to binary

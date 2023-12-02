@@ -1,4 +1,4 @@
-#include "../include/file_manager.h"
+#include "../include/netfs.h"
 
 #include <cerrno>
 #include <cstdint>
@@ -10,7 +10,7 @@
 #include <iostream>
 #include <sys/stat.h>
 
-namespace FileManager {
+namespace netfs {
     bool write_file(std::string path, uint8_t *buf, uint64_t length) {
         // Open the file
         FILE *file = fopen(path.c_str(), "w");
@@ -131,4 +131,3 @@ namespace FileManager {
         return true;
     }
 }
-

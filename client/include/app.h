@@ -24,6 +24,5 @@ namespace App {
 
     size_t hash_string(const std::string& str);
     size_t hash_file(const std::string& filename);
-
 }
 

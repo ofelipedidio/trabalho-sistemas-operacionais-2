@@ -21,4 +21,3 @@ namespace FileManager {
     bool delete_file(std::string path);
     std::vector<file_description> list_files(std::string path);
 }
-
