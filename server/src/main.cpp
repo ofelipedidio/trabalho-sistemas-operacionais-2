@@ -4,8 +4,11 @@
 
 #include "../include/server.h"
 #include "../include/closeable.h"
+#include "../include/client.h"
 
 int main(int argc, char** argv) {
+    client_init();
+
     signal(SIGINT, sigint_handler);
     uint16_t port = 4000;
     if (argc >= 2) {

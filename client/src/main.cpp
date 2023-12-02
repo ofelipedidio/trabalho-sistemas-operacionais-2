@@ -1,5 +1,6 @@
 // Test
 #include <cstdint>
+#include <cstdlib>
 #include <sstream>
 #ifdef TEST_MODE
 #include "test.h"
@@ -32,27 +33,19 @@ int main(int argc, char **argv) {
     std::istringstream iss(port_str);
     iss >> port;
 
-    system(("mkdir sync_dir_" + username).c_str());
+    system(("mkdir -p sync_dir_" + username).c_str());
+
+    App::init(username);
 
     // Start networking thread
     if (!Network::init(ip, port)) {
-        std::cerr << "ERROR: could not initialize the network submodule" << std::endl;
-        return 1;
+        return EXIT_FAILURE;
     }
 
     Network::download_file(username, std::string("didio.txt"));
     
-    
-  
-
     FileManager::delete_file("asd");
     
-
-    // TODO - Didio: Start app
-    App::init(username);
-
-      // Start FS notify thread
-    // TODO - Didio: Arrumar
     FSNotify::init(username);
 
     Cli::init(username);

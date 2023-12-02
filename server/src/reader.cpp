@@ -99,6 +99,7 @@ bool read_string(struct tcp_reader& reader, std::string *val) {
         }
         str.push_back(c);
     }
+    *val = str;
     return true;
 }
 
@@ -118,11 +119,10 @@ bool read_u16(struct tcp_reader& reader, uint16_t *val) {
     uint16_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 2; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint16_t) temp);
+        res = res | (((uint16_t) temp) << (8 * i));
     }
     *val = res;
     return true;
@@ -132,11 +132,10 @@ bool read_u32(struct tcp_reader& reader, uint32_t *val) {
     uint32_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 4; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint32_t) temp);
+        res = res | (((uint32_t) temp) << (8 * i));
     }
     *val = res;
     return true;
@@ -146,11 +145,10 @@ bool read_u64(struct tcp_reader& reader, uint64_t *val) {
     uint64_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 8; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint64_t) temp);
+        res = res | (((uint64_t) temp) << (8 * i));
     }
     *val = res;
     return true;

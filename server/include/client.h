@@ -55,6 +55,11 @@ typedef struct {
 } client_t;
 
 /*
+ * Initialized the client handling side of the server
+ */
+void client_init();
+
+/*
  * Takes connection_t pointer as an owned pointer.
  *
  * Returns a nullptr and closes the TCP connection, if there are too many connections to the same username.

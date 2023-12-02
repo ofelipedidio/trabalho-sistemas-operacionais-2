@@ -84,13 +84,16 @@ namespace Cli{
     }
 
     void list_server_files(const std::string& username) {
-        std::vector<FileManager::file_description> server_files = App::list_server();
+        std::vector<netfs::file_description_t> server_files = App::list_server();
         tabulate::Table files = create_file_table(server_files);
         std::cout << files << std::endl;
     }
 
     void list_client_files(const std::string& username) {
-        std::vector<FileManager::file_description> client_files = FileManager::list_files(path);
+        std::vector<netfs::file_description_t> client_files;
+        if (!netfs::list_files(path, &client_files)) {
+            // TODO - Didio: Handle case when the files cannot be listed
+        }
         tabulate::Table files = create_file_table(client_files);
         std::cout << files << std::endl;
     }
@@ -101,7 +104,7 @@ namespace Cli{
         exit(0);
     }
 
-    tabulate::Table create_file_table(std::vector<FileManager::file_description> files){
+    tabulate::Table create_file_table(std::vector<netfs::file_description_t> files){
         tabulate::Table file_table;
         file_table.add_row({"filename", "mac"});
 

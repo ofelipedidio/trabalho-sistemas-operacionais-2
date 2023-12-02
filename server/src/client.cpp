@@ -17,6 +17,7 @@ sem_t global_mutex;
 
 void client_init() {
     sem_init(&global_mutex, 0, 1);
+    clients = std::unordered_multimap<std::string, client_t*>();
 }
 
 /*
@@ -44,7 +45,7 @@ bool can_connect(std::string username) {
     auto range = clients.equal_range(username);
 
     for (auto it = range.first; it != range.second; ) {
-        if (_client_is_valid(it->second)) {
+        if (!_client_is_valid(it->second)) {
             client_free(it->second);
             clients.erase(it);
         } else {
@@ -72,13 +73,12 @@ client_t *client_new(std::string username, connection_t *connection) {
         sem_post(&global_mutex);
         return nullptr;
     }
-    
+
     // Initialize the client's variables
     client->username = username;
     client->connection = connection;
     client->active = true;
     client->pending_events = std::queue<file_event_t>();
-    sem_init(&client->mutex, 0, 1);
 
     // Insert the new client into the client list
     clients.insert({username, client});

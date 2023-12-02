@@ -41,14 +41,14 @@ bool ready(struct tcp_reader& reader) {
 
 bool peek(struct tcp_reader& reader, uint64_t offset, uint8_t *val) {
     if ((reader.read_end - reader.read_start) + offset + 1 >= RSIZE) {
-        std::cerr << "[READER] Peak caused a buffer overflow" << std::endl;
+        std::cerr << "ERROR: [READER] Peak caused a buffer overflow" << std::endl;
         return false;
     }
     while (reader.read_start + offset >= reader.read_end) {
         int len = RSIZE - (reader.read_end - reader.read_start) - 1;
         int read_size = read(reader.sockfd, (reader.read_buffer + (reader.read_end % RSIZE)), len);
         if (read_size < 0) {
-            std::cerr << "[READER] Peaked outside the buffer on a closed connection" << std::endl;
+            std::cerr << "ERROR: [READER] Peaked outside the buffer on a closed connection" << std::endl;
             return false;
         }
         reader.read_end += read_size;
@@ -64,7 +64,7 @@ bool step(struct tcp_reader& reader, uint64_t amount) {
         reader.read_end = 0;
         int read_size = read(reader.sockfd, (void*) reader.read_buffer, RSIZE - 1);
         if (read_size < 0) {
-            std::cerr << "[READER] Tried to advance beyond the buffer on a closed connection" << std::endl;
+            std::cerr << "ERROR: [READER] Tried to advance beyond the buffer on a closed connection" << std::endl;
             return false;
         }
         reader.read_end += read_size;
@@ -99,6 +99,7 @@ bool read_string(struct tcp_reader& reader, std::string *val) {
         }
         str.push_back(c);
     }
+    *val = str;
     return true;
 }
 
@@ -118,11 +119,10 @@ bool read_u16(struct tcp_reader& reader, uint16_t *val) {
     uint16_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 2; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint16_t) temp);
+        res = res | (((uint16_t) temp) << (8 * i));
     }
     *val = res;
     return true;
@@ -132,11 +132,10 @@ bool read_u32(struct tcp_reader& reader, uint32_t *val) {
     uint32_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 4; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint32_t) temp);
+        res = res | (((uint32_t) temp) << (8 * i));
     }
     *val = res;
     return true;
@@ -146,11 +145,10 @@ bool read_u64(struct tcp_reader& reader, uint64_t *val) {
     uint64_t res = 0;
     uint8_t temp;
     for (int i = 0; i < 8; i++) {
-        res = res << 8;
         if (!read_u8(reader, &temp)) {
             return false;
         }
-        res = res | ((uint64_t) temp);
+        res = res | (((uint64_t) temp) << (8 * i));
     }
     *val = res;
     return true;
@@ -169,3 +167,4 @@ bool read_bytes(struct tcp_reader& reader, uint8_t *val, uint64_t length) {
     }
     return true;
 }
+
