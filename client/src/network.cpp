@@ -19,7 +19,6 @@
 
 #include "../include/async_queue.h"
 #include "../include/network.h"
-#include "../include/net_protocol.h"
 
 namespace Network {
     pthread_t network_thread;
