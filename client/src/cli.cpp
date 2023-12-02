@@ -49,7 +49,10 @@ namespace Cli{
         };
 
         std::string user_input;
-        while (std::cin >> user_input) {
+        while (true) {
+            std::cout<<"> ";
+            bool aux = (bool)(std::cin >> user_input);
+            if(!aux)break;
             auto it = command_map.find(user_input);
             if (it != command_map.end()) {
                 it->second(username);
