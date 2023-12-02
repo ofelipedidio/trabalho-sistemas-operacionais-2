@@ -41,14 +41,14 @@ bool ready(struct tcp_reader& reader) {
 
 bool peek(struct tcp_reader& reader, uint64_t offset, uint8_t *val) {
     if ((reader.read_end - reader.read_start) + offset + 1 >= RSIZE) {
-        std::cerr << "[READER] Peak caused a buffer overflow" << std::endl;
+        std::cerr << "ERROR: [READER] Peak caused a buffer overflow" << std::endl;
         return false;
     }
     while (reader.read_start + offset >= reader.read_end) {
         int len = RSIZE - (reader.read_end - reader.read_start) - 1;
         int read_size = read(reader.sockfd, (reader.read_buffer + (reader.read_end % RSIZE)), len);
         if (read_size < 0) {
-            std::cerr << "[READER] Peaked outside the buffer on a closed connection" << std::endl;
+            std::cerr << "ERROR: [READER] Peaked outside the buffer on a closed connection" << std::endl;
             return false;
         }
         reader.read_end += read_size;
@@ -64,7 +64,7 @@ bool step(struct tcp_reader& reader, uint64_t amount) {
         reader.read_end = 0;
         int read_size = read(reader.sockfd, (void*) reader.read_buffer, RSIZE - 1);
         if (read_size < 0) {
-            std::cerr << "[READER] Tried to advance beyond the buffer on a closed connection" << std::endl;
+            std::cerr << "ERROR: [READER] Tried to advance beyond the buffer on a closed connection" << std::endl;
             return false;
         }
         reader.read_end += read_size;
