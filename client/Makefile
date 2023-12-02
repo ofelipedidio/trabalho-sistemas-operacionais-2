@@ -17,6 +17,8 @@ bin:
 build:
 	mkdir -p build
 
+include/%.h: src/%.cpp
+
 # Compile `.cpp` to `.o`
 build/%.o: src/%.cpp |build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
