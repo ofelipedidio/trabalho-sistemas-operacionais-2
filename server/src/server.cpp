@@ -1,4 +1,5 @@
 #include "../include/server.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -7,8 +8,10 @@
 #include <string>
 #include <vector>
 
+#include "../include/connection.h"
+
 #define MAX_ACTIVE_CONNECTIONS 2
-// std::unordered_map<std::string, std::vector<client_connection_t*>> connections;
+
 std::unordered_multimap<std::string, client_t*> clients;
 
 /*
@@ -70,18 +73,8 @@ client_t *client_new(std::string username, connection_t *connection) {
 
 void client_free(client_t *client) {
     close(client->connection->sockfd);
-    free(client->connection);
+    conn_free(client->connection);
     free(client);
-}
-
-void client_broadcast_file_created(std::string username, std::string filename) {
-    auto range = clients.equal_range(username);
-    for (auto it = range.first; it != range.second; ) {
-        client_t *client = it->second;
-        sem_wait(&client->mutex);
-        client->pending_events.push({event_file_created, filename});
-        sem_post(&client->mutex);
-    }
 }
 
 void client_broadcast_file_modified(std::string username, std::string filename) {

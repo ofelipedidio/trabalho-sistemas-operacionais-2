@@ -4,16 +4,16 @@
 #include <queue>
 #include <string>
 #include <unistd.h>
-#include "connection.h"
 #include <semaphore.h>
+
+#include "../include/connection.h"
 
 /*
  * The different types of events that might need to be broadcast to all client
  */
 typedef enum {
-    event_file_created,
-    event_file_modified,
-    event_file_deleted,
+    event_file_modified = 1,
+    event_file_deleted = 2,
 } file_event_type_t;
 
 /*
@@ -65,11 +65,6 @@ client_t *client_new(std::string username, connection_t *connection);
  * Frees the memory from the client connection. The TCP connection is garanteed to be closed.
  */
 void client_free(client_t *client);
-
-/*
- * Broadcasts the `file created` event to all clients currently connected
- */
-void client_broadcast_file_created(std::string username, std::string filename);
 
 /*
  * Broadcasts the `file modified` event to all clients currently connected

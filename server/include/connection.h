@@ -15,4 +15,8 @@ typedef struct {
     tcp_writer<32> writer;
 } connection_t;
 
+connection_t *conn_new(struct in_addr server_address, in_port_t server_port, struct in_addr client_address, in_port_t client_port, int sockfd);
+
+void conn_free(connection_t *connection);
+
 #endif // CONNECTION

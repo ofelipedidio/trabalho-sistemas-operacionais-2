@@ -1,58 +1,46 @@
 #include "../include/protocol.h"
-#include "../include/connection.h"
-#include "../include/server.h"
+
 #include <cstdint>
 #include <cstdlib>
+#include <cstdlib>
+#include <vector>
 
-#define PACKET_VERSION 1
-#define PACKET_TYPE_HANDSHAKE 0
-#define PACKET_TYPE_DOWNLOAD 1
-#define PACKET_TYPE_UPLOAD 2
-#define PACKET_TYPE_DELETE 3
-#define PACKET_TYPE_LIST_FILES 4
-#define PACKET_TYPE_EXIT 5
-    
-typedef struct {
-    uint16_t protocol_version;
-    uint64_t packet_length;
-    uint8_t packet_type;
-} packet_header_t;
+#include "../include/connection.h"
+#include "../include/server.h"
+#include "../include/file_manager.h"
 
-bool read_header(client_t *client, packet_header_t *header) {
+bool read_header(connection_t *connection, packet_header_t *header) {
     packet_header_t _header;
-    if (!read_u16(client->connection->reader, &_header.protocol_version)) {
+    if (!read_u16(connection->reader, &_header.protocol_version)) {
         return false;
     }
-    if (!read_u64(client->connection->reader, &_header.packet_length)) {
-        return false;
-    }
-    if (!read_u8(client->connection->reader, &_header.packet_type)) {
+    if (!read_u8(connection->reader, &_header.packet_type)) {
         return false;
     }
     *header = _header;
     return true;
 }
 
-bool handshake(client_t *client, std::string *username) {
+bool handshake(connection_t *connection, std::string *username) {
     packet_header_t header;
-    if (!read_header(client, &header)) {
+    if (!read_header(connection, &header)) {
         return false;
     }
-    if (header.protocol_version != PACKET_VERSION ||
+    if (header.protocol_version != PROTOCOL_VERSION ||
             header.packet_type != PACKET_TYPE_HANDSHAKE) {
         return false;
     }
-    if (!read_string(client->connection->reader, username)) {
+    if (!read_string(connection->reader, username)) {
         return false;
     }
     return true;
 }
 
-bool receive_packet(client_t *client, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t *bytes) {
-    if (!read_header(client, header)) {
+bool receive_packet(connection_t *connection, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t *bytes) {
+    if (!read_header(connection, header)) {
         return false;
     }
-    if (header->protocol_version != PACKET_VERSION) {
+    if (header->protocol_version != PROTOCOL_VERSION) {
         return false;
     }
 
@@ -61,20 +49,22 @@ bool receive_packet(client_t *client, packet_header_t *header, std::string *file
             return false;
             break;
         case PACKET_TYPE_DOWNLOAD:
-            read_string(client->connection->reader, filename);
+            read_string(connection->reader, filename);
             break;
         case PACKET_TYPE_UPLOAD:
-            read_string(client->connection->reader, filename);
-            read_u64(client->connection->reader, length);
+            read_string(connection->reader, filename);
+            read_u64(connection->reader, length);
             bytes = (uint8_t*) malloc(sizeof(uint8_t)*(*length));
-            read_bytes(client->connection->reader, bytes, *length);
+            read_bytes(connection->reader, bytes, *length);
             break;
         case PACKET_TYPE_DELETE:
-            read_string(client->connection->reader, filename);
+            read_string(connection->reader, filename);
             break;
         case PACKET_TYPE_LIST_FILES:
             break;
         case PACKET_TYPE_EXIT:
+            break;
+        case PACKET_TYPE_UPDATE:
             break;
         default:
             return false;
@@ -82,4 +72,73 @@ bool receive_packet(client_t *client, packet_header_t *header, std::string *file
     }
     return true;
 }
+
+void respond_download_success(connection_t *connection, uint8_t *buf, uint64_t length) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_SUCCESS);
+    write_bytes(connection->writer, buf, length);
+    flush(connection->writer);
+}
+
+void respond_download_fail(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
+void respond_upload_success(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_SUCCESS);
+    flush(connection->writer);
+}
+
+void respond_upload_fail(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
+void respond_delete_success(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_SUCCESS);
+    flush(connection->writer);
+}
+
+void respond_delete_fail(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
+void respond_list_files_success(connection_t *connection, std::vector<FileManager::file_description_t> files) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_SUCCESS);
+    write_u64(connection->writer, (uint64_t) files.size());
+    for (std::size_t i = 0; i < files.size(); i++) {
+        write_u64(connection->writer, files[i].mac);
+        write_string(connection->writer, files[i].filename);
+    }
+    flush(connection->writer);
+}
+
+void respond_list_files_fail(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
+void respond_update_some(connection_t *connection, file_event_t event) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_EMPTY);
+    write_u32(connection->writer, (uint32_t) event.type);
+    write_string(connection->writer, event.filename);
+    flush(connection->writer);
+}
+
+void respond_update_none(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
 

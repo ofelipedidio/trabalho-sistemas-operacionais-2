@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <vector>
+#include <iostream>
 
 #include "../include/closeable.h"
 
@@ -15,4 +16,10 @@ void close_all_connections() {
         socket_fds.pop_back();
         close(sockfd);
     }
+}
+
+void sigint_handler(int param) {
+    std::cerr << "\n[SIGINT_HANDLER] Closing all sockets" << std::endl;
+    close_all_connections();
+    exit(1);
 }
