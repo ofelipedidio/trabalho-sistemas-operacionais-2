@@ -33,4 +33,3 @@ void write_u32(struct tcp_writer& writer, uint32_t value);
 void write_u64(struct tcp_writer& writer, uint64_t value);
 
 #endif // !WRITER
-

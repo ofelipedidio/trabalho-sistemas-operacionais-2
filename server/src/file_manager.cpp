@@ -10,8 +10,8 @@
 #include <iostream>
 #include <sys/stat.h>
 
-namespace FileManager{
-    bool write_file(std::string path, uint8_t *buf, uint64_t length){ //true em caso de sucesso
+namespace FileManager {
+    bool write_file(std::string path, uint8_t *buf, uint64_t length) {
         // Open the file
         FILE *file = fopen(path.c_str(), "w");
         if (file == NULL) {
@@ -41,7 +41,7 @@ namespace FileManager{
         return true;
     }
 
-    bool read_file(std::string path, file_metadata_t *out_metadata){
+    bool read_file(std::string path, file_metadata_t *out_metadata) {
         // Open the file
         FILE *file = fopen(path.c_str(), "r");
         if (file == NULL) {
