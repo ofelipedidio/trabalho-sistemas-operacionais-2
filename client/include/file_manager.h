@@ -11,7 +11,7 @@ namespace FileManager {
     typedef struct Read_File_Metadata {
         long long int length;
         long long int mac;
-        char* contents;
+        u_int8_t* contents;
     } File_Metadata;
     
     bool write_file(std::string path, uint8_t *buf);

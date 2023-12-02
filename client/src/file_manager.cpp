@@ -13,8 +13,6 @@ namespace FileManager{
 
     bool write_file(std::string path, uint8_t *buf){ //true em caso de sucesso
         std::ofstream file;
-        //TODO: Felipe K - garantir que inotify não pegue oq esta sendo escrito como algo novo
-
         // Felipe K - por enquanto inotify não manda eventos enquanto o write estiver ativo
         // porém vai enviar a notificação após o fim do write
         sem_wait(&FSNotify::enable_notify);
@@ -47,9 +45,9 @@ namespace FileManager{
         (*metadados).mac = mod_time;
         (*metadados).length = size;
 
-        (*metadados).contents = (char*) malloc(size);//possivelmente precise de uns bytes no inicio pra metadados
+        (*metadados).contents = (u_int8_t*) malloc(size);
         file.seekg (0, std::ios::beg);
-        file.read ((*metadados).contents, size);
+        file.read ((char *)(*metadados).contents, size);
         file.close();
         return metadados;
     }
