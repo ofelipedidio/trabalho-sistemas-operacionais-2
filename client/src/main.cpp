@@ -40,14 +40,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    Network::download_file(username, std::string("didio.txt"));
-    
-    
-  
-
-    FileManager::delete_file("asd");
-    
-
     // TODO - Didio: Start app
     App::init(username);
 
