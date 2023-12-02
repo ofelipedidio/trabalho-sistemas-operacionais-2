@@ -8,8 +8,14 @@
 #include "../include/fs_notify.h"
 
 namespace FileManager {
+    /*
+     * 'struct' used to list the files in a folder
+     */
     typedef std::pair<std::string, uint64_t> file_description;
 
+    /*
+     * struct with the necessary information to upload a file
+     */
     typedef struct Read_File_Metadata {
         long long int length;
         long long int mac;
