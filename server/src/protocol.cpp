@@ -146,7 +146,7 @@ void respond_list_files_fail(connection_t *connection) {
 
 void respond_update_some(connection_t *connection, file_event_t event) {
     write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_EMPTY);
+    write_u8(connection->writer, STATUS_SUCCESS);
     write_u32(connection->writer, (uint32_t) event.type);
     write_string(connection->writer, event.filename);
     flush(connection->writer);
@@ -154,7 +154,7 @@ void respond_update_some(connection_t *connection, file_event_t event) {
 
 void respond_update_none(connection_t *connection) {
     write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
+    write_u8(connection->writer, STATUS_EMPTY);
     flush(connection->writer);
 }
 
