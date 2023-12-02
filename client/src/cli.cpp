@@ -44,7 +44,7 @@ namespace Cli{
                 list_client_files(username);
             }},
             {"exit", [&username](const std::string&) {
-                exit(username);
+                cli_exit(username);
             }}
         };
 
@@ -95,7 +95,7 @@ namespace Cli{
         std::cout << files << std::endl;
     }
 
-    void exit(const std::string& username) {
+    void cli_exit(const std::string& username) {
         Network::client_exit(username);
         std::cout<<"exit with sucess"<<std::endl;
         exit(0);
