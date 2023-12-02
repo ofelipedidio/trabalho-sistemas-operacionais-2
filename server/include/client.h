@@ -62,6 +62,11 @@ typedef struct {
 client_t *client_new(std::string username, connection_t *connection);
 
 /*
+ * Removes the client from the server
+ */
+void client_remove(client_t *client);
+
+/*
  * Frees the memory from the client connection. The TCP connection is garanteed to be closed.
  */
 void client_free(client_t *client);

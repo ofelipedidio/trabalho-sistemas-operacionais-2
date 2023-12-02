@@ -50,7 +50,7 @@ void *client_handler_thread(void *_arg) {
 
     // Server loop
     while (running) {
-        bool receive_success = receive_packet(client, &header, &filename, &length, &bytes);
+        bool receive_success = receive_packet(client->connection, &header, &filename, &length, &bytes);
         if (!receive_success) {
             running = false;
             break;
@@ -72,6 +72,7 @@ void *client_handler_thread(void *_arg) {
                 } else {
                     respond_upload_fail(client->connection);
                 }
+                free(bytes);
                 break;
             case PACKET_TYPE_DELETE:
                 if (FileManager::delete_file(client_dir + "/" + filename)) {
@@ -104,12 +105,17 @@ void *client_handler_thread(void *_arg) {
 
     // Invalidate client and exit
     client->active = false;
+    client_remove(client);
     pthread_exit(nullptr);
     return nullptr;
 }
 
 void handle_connection(connection_t *connection) {
     add_connection(connection->sockfd);
+    char buffer[INET_ADDRSTRLEN];
+    inet_ntop( AF_INET, &connection->client_address, buffer, sizeof( buffer ));
+
+    std::cout << "[LISTEN] Received a connection from " << buffer << ":" << htons(connection->server_port) << " (ID: " << connection->connection_id << ")" << std::endl;
 
     // Perform handshake
     std::string username;
@@ -119,8 +125,14 @@ void handle_connection(connection_t *connection) {
         return;
     }
 
+    std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Identified as `" << username << "`" << std::endl;
+
     // Create client
     client_t *client = client_new(username, connection);
+    if (client == nullptr) {
+        std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection refused" << std::endl;
+        return;
+    }
 
     // Create thread
     pthread_t thread;

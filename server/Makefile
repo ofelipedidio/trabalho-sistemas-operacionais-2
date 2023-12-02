@@ -1,9 +1,10 @@
 CXX = g++
 # -Wall: Generate all warning
 # -g: Keep debugging symbols
-CXXFLAGS = -Wall -g
+CXXFLAGS = -Wall -g -fsanitize=leak
 
 # Project files
+HEADERS = $(wildcard include/*.h)
 SRC = $(wildcard src/*.cpp)
 OBJ = $(patsubst src/%.cpp, build/%.o, $(SRC))
 
@@ -17,15 +18,15 @@ bin:
 build:
 	mkdir -p build
 
-include/%.h: src/%.cpp
-
 # Compile `.cpp` to `.o`
-build/%.o: src/%.cpp |build
+build/%.o: src/%.cpp include/%.h |build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Compile `.o` to binary
 bin/server: $(OBJ) |bin
 	$(CXX) -o bin/server $(OBJ)
+
+include/main.h:
 
 # Rules that are not attached to files
 .PHONY: compile clean test

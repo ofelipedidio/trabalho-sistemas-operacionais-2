@@ -13,6 +13,11 @@
 #define MAX_ACTIVE_CONNECTIONS 2
 
 std::unordered_multimap<std::string, client_t*> clients;
+sem_t global_mutex;
+
+void client_init() {
+    sem_init(&global_mutex, 0, 1);
+}
 
 /*
  * For a client to be considered active, it has to be considered active 
@@ -34,6 +39,7 @@ bool _client_is_valid(client_t *client) {
     return true;
 }
 
+// This assumes you have the mutex
 bool can_connect(std::string username) {
     auto range = clients.equal_range(username);
 
@@ -50,14 +56,22 @@ bool can_connect(std::string username) {
 }
 
 client_t *client_new(std::string username, connection_t *connection) {
+    sem_wait(&global_mutex);
+
     // Check wether this client has exceded the maximum 
     // allowed limit of connections per client
     if (!can_connect(username)) {
+        sem_post(&global_mutex);
         return nullptr;
     }
 
     // Allocate memory for the client
     client_t *client = (client_t*) malloc(sizeof(client_t));
+    if (client == NULL) {
+        std::cout << "ERROR: [client_new with username = `" << username << "`] Could not allocate memory for the client" << std::endl;
+        sem_post(&global_mutex);
+        return nullptr;
+    }
     
     // Initialize the client's variables
     client->username = username;
@@ -68,7 +82,27 @@ client_t *client_new(std::string username, connection_t *connection) {
 
     // Insert the new client into the client list
     clients.insert({username, client});
+
+    sem_post(&global_mutex);
     return client;
+}
+
+void client_remove(client_t *client) {
+    sem_wait(&global_mutex);
+
+    client->active = false;
+    auto range = clients.equal_range(client->username);
+
+    for (auto it = range.first; it != range.second; ) {
+        if (_client_is_valid(it->second)) {
+            client_free(it->second);
+            clients.erase(it);
+        } else {
+            it++;
+        }
+    }
+
+    sem_post(&global_mutex);
 }
 
 void client_free(client_t *client) {
@@ -78,6 +112,7 @@ void client_free(client_t *client) {
 }
 
 void client_broadcast_file_modified(std::string username, std::string filename) {
+    sem_wait(&global_mutex);
     auto range = clients.equal_range(username);
     for (auto it = range.first; it != range.second; ) {
         client_t *client = it->second;
@@ -85,9 +120,11 @@ void client_broadcast_file_modified(std::string username, std::string filename) 
         client->pending_events.push({event_file_modified, filename});
         sem_post(&client->mutex);
     }
+    sem_wait(&global_mutex);
 }
 
 void client_broadcast_file_deleted(std::string username, std::string filename) {
+    sem_wait(&global_mutex);
     auto range = clients.equal_range(username);
     for (auto it = range.first; it != range.second; ) {
         client_t *client = it->second;
@@ -95,6 +132,7 @@ void client_broadcast_file_deleted(std::string username, std::string filename) {
         client->pending_events.push({event_file_deleted, filename});
         sem_post(&client->mutex);
     }
+    sem_wait(&global_mutex);
 }
 
 bool client_get_event(client_t *client, file_event_t *out_event) {
