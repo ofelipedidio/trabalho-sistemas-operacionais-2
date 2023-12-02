@@ -77,7 +77,7 @@ namespace FileManager{
                         
                         std::string::size_type i = filename.find(path);
                         if (i != std::string::npos)
-                            filename.erase(i, path.length());
+                            filename.erase(i, path.length()+1);
                         files_list.emplace_back(filename, modified_time);
                     } else {
                         exit(69);
