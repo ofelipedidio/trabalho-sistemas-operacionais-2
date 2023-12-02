@@ -57,6 +57,9 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
             read_string(connection->reader, filename);
             read_u64(connection->reader, length);
             *bytes = (uint8_t*) malloc(sizeof(uint8_t)*(*length));
+            if (*bytes == NULL) {
+                return false;
+            }
             read_bytes(connection->reader, *bytes, *length);
             break;
         case PACKET_TYPE_DELETE:
