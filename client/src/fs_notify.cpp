@@ -9,6 +9,7 @@
 
 #include "../include/logger.h"
 #include "../include/fs_notify.h"
+#include "../include/app.h"
 
 
 namespace FSNotify {
@@ -55,7 +56,6 @@ namespace FSNotify {
                     struct inotify_event *event = reinterpret_cast<struct inotify_event *>(p);
 
                     if ((event->mask & IN_MODIFY) | (event->mask & IN_CLOSE_WRITE)) {
-                        std::cout << "File modified: " << event->name << std::endl;
                         if (!modified(event))
                         {
                             std::cerr << "failed to notify modification\n";
@@ -64,14 +64,12 @@ namespace FSNotify {
                     }
 
                     if ((event->mask & IN_CREATE) | (event->mask & IN_MOVED_TO)) {
-                        std::cout << "File created: " << event->name << std::endl;
                         if(!created(event)){
                             std::cerr << "failed to notify creation\n";
                         }
                     }
 
                     if ((event->mask & IN_DELETE) | (event->mask & IN_MOVED_FROM)) {
-                        std::cout << "File deleted: " << event->name << std::endl;
                         if(!deleted(event)){
                             std::cerr << "failed to notify deletion\n";
                         }
@@ -88,15 +86,18 @@ namespace FSNotify {
 
 
     bool modified(inotify_event *event){
-        log_debug("modified file: " << log_value((*event).name));
+        std::string name(event->name,event->len);
+        App::notify_modified(name);
         return true;
     }
     bool created(inotify_event *event){
-        log_debug("created file: " << log_value((*event).name));
+        std::string name(event->name,event->len);
+        App::notify_new_file(name);
         return true;
     }
     bool deleted(inotify_event *event){
-        log_debug("deleted file: " << log_value((*event).name));
+        std::string name(event->name,event->len);
+        App::notify_deleted(name);
         return true;
     }
 

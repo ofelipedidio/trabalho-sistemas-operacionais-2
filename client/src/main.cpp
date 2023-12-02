@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     std::istringstream iss(port_str);
     iss >> port;
 
-    system(("mkdir sync_dir_" + username).c_str());
+    system(("mkdir sync_dir_" + username + " -p").c_str());
 
     // Start networking thread
     if (!Network::init(ip, port)) {
