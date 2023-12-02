@@ -6,6 +6,8 @@
 #include <semaphore.h>
 #include <filesystem>
 
+#include "../include/netfs.h"
+
 namespace App
 {
     std::string username;
@@ -118,10 +120,10 @@ namespace App
         sem_post(&mutex);
     }
 
-    std::vector<FileManager::file_description> list_server()
+    std::vector<netfs::file_description_t> list_server()
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         int task_id = Network::list_files(username);
         Network::get_task_by_id(task_id, &task);
         sem_post(&mutex);
@@ -131,7 +133,7 @@ namespace App
     void upload_file(std::string path)
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         std::string filename = std::filesystem::path(path).filename().string();
         Network::upload_file(username, filename);
         sem_post(&mutex);
@@ -147,8 +149,12 @@ namespace App
     void delete_file(std::string filename)
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         Network::delete_file(username, filename);        
         sem_post(&mutex);
+    }
+
+    std::string get_username() {
+        return App::username;
     }
 }

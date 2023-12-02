@@ -30,8 +30,36 @@
 #define BUF_SIZE 1024
 #define LINE_CHAR_COUNT 32
 
+inline client_t *connect_to_client(connection_t *connection) {
+    // Perform handshake
+    std::string username;
+    if (!handshake(connection, &username)) {
+        close(connection->sockfd);
+        conn_free(connection);
+        return nullptr;
+    }
+
+    std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Identified as `" << username << "`" << std::endl;
+
+    // Create client
+    client_t *client = client_new(username, connection);
+    if (client == nullptr) {
+        std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection refused" << std::endl;
+        respond_handshake_fail(connection);
+        return nullptr;
+    }
+
+    std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection accepted" << std::endl;
+    respond_handshake_success(connection);
+    return client;
+}
+
 void *client_handler_thread(void *_arg) {
-    client_t *client = (client_t*) _arg;
+    client_t *client = connect_to_client((connection_t*) _arg);
+    if (client == nullptr) {
+        pthread_exit(NULL);
+        return nullptr;
+    }
 
     // Variable declaration
     std::string client_dir;
@@ -117,28 +145,9 @@ void handle_connection(connection_t *connection) {
 
     std::cout << "[LISTEN] Received a connection from " << buffer << ":" << htons(connection->server_port) << " (ID: " << connection->connection_id << ")" << std::endl;
 
-    // Perform handshake
-    std::string username;
-    if (!handshake(connection, &username)) {
-        close(connection->sockfd);
-        conn_free(connection);
-        return;
-    }
-
-    std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Identified as `" << username << "`" << std::endl;
-
-    // Create client
-    client_t *client = client_new(username, connection);
-    if (client == nullptr) {
-        respond_handshake_fail(connection);
-        std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection refused" << std::endl;
-        return;
-    }
-    respond_handshake_success(connection);
-
     // Create thread
     pthread_t thread;
-    pthread_create(&thread, NULL, client_handler_thread, client);
+    pthread_create(&thread, NULL, client_handler_thread, connection);
 }
 
 bool tcp_dump_1(std::string ip, uint16_t port) {

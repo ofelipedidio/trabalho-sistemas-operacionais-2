@@ -3,6 +3,7 @@
 #include <string>
 #include "../include/tabulate.hpp" 
 #include "../include/file_manager.h" 
+#include "../include/netfs.h" 
 
 namespace Cli{
     void init(const std::string& username);
@@ -12,5 +13,5 @@ namespace Cli{
     void list_server_files(const std::string& username);
     void list_client_files(const std::string& username);
     void cli_exit(const std::string& username);
-    tabulate::Table create_file_table(std::vector<FileManager::file_description> files);
+    tabulate::Table create_file_table(std::vector<netfs::file_description_t> files);
 }

@@ -5,8 +5,8 @@ bool request_handshake(connection_t *connection, std::string username, uint8_t *
     // Send the request
     write_u16(connection->writer, PROTOCOL_VERSION);
     write_u8(connection->writer, PACKET_TYPE_HANDSHAKE);
+    write_string(connection->writer, username);
     flush(connection->writer);
-
 
     // Receive the response
     uint16_t protocol_version;
