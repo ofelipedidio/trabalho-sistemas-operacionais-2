@@ -1,7 +1,7 @@
-#include <cstdint>
+#pragma once
+
 #include <string>
 #include <vector>
-#include <semaphore.h>
 #include <pthread.h>
 #include "file_manager.h"
 #include "network.h"
@@ -12,13 +12,17 @@ namespace App {
     void notify_new_file(std::string filename);
     void notify_modified(std::string filename);
     void notify_deleted(std::string filename);
-    
-    void task_done(uint8_t* mem);
 
+    void network_new_file(std::string filename, uint8_t *buf);
+    void network_modified(std::string filename, uint8_t *buf);
+    void network_deleted(std::string filename);
+    
     std::vector<FileManager::file_description> list_server();
     void upload_file(std::string path);
     void download_file(std::string filename);
-    void delete_file(std::string path);
-    void get_sync_dir(std::string username);
+    void delete_file(std::string filename);
+
+    size_t hash_string(const std::string& str);
+    size_t hash_file(const std::string& filename);
 }
 
