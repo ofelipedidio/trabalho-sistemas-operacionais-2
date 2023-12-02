@@ -1,3 +1,6 @@
+#ifndef NETWORK 
+#define NETWORK
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -36,3 +39,6 @@ namespace Network {
     bool try_get_task_by_id(int task_id, network_task *task);
     void get_task(int task_id, network_task *task);
 }
+
+#endif // !NETWORK
+
