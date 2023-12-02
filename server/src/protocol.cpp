@@ -75,6 +75,18 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
     return true;
 }
 
+void respond_handshake_success(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_SUCCESS);
+    flush(connection->writer);
+}
+
+void respond_handshake_fail(connection_t *connection) {
+    write_u16(connection->writer, PROTOCOL_VERSION);
+    write_u8(connection->writer, STATUS_FAIL);
+    flush(connection->writer);
+}
+
 void respond_download_success(connection_t *connection, uint8_t *buf, uint64_t length) {
     write_u16(connection->writer, PROTOCOL_VERSION);
     write_u8(connection->writer, STATUS_SUCCESS);

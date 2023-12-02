@@ -130,9 +130,11 @@ void handle_connection(connection_t *connection) {
     // Create client
     client_t *client = client_new(username, connection);
     if (client == nullptr) {
+        respond_handshake_fail(connection);
         std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection refused" << std::endl;
         return;
     }
+    respond_handshake_success(connection);
 
     // Create thread
     pthread_t thread;
