@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -28,11 +30,11 @@ namespace Network {
     int download_file(std::string username, std::string path);
     int delete_file(std::string username, std::string path);
     int client_exit(std::string username);
-    int list_files(std::string username, std::string path);
+    int list_files(std::string username);
 
     bool try_get_task(network_task *task);
     void get_task(network_task *task);
     
     bool try_get_task_by_id(int task_id, network_task *task);
-    void get_task(int task_id, network_task *task);
+    void get_task_by_id(int task_id, network_task *task);
 }

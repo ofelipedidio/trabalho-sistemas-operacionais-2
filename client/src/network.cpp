@@ -107,6 +107,7 @@ namespace Network {
     /*
      * Adds an upload task to the task queue and returns the task id
      */
+    // TODO : accept filename and path
     int upload_file(std::string username, std::string path) {
         int task_id = last_task_id++;
         __internal::task_queue.push(task_id, {
@@ -171,7 +172,7 @@ namespace Network {
     /*
      * Adds a list files task to the task queue and returns the task id
      */
-    int list_files(std::string username, std::string path) {
+    int list_files(std::string username) {
         int task_id = last_task_id++;
         __internal::task_queue.push(task_id, {
                 TASK_LIST_FILES, 
@@ -236,7 +237,7 @@ namespace Network {
         }
     }
 
-    void get_task(int task_id, network_task *task) {
+    void get_task_by_id(int task_id, network_task *task) {
         network_task done_task = __internal::done_queue.pop_by_id(task_id);
 
         // Copy the data from the done task to task

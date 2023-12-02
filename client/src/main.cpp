@@ -8,6 +8,8 @@
 #include "../include/network.h"
 //#include "../include/fs_notify.h"
 #include "../include/app.h"
+#include "../include/cli.h"
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -53,7 +55,7 @@ int main(int argc, char **argv) {
     // TODO - Didio: Arrumar
     FSNotify::init(username);
 
-    Cli::init();
+    Cli::init(username);
 
     return 0;
 }
