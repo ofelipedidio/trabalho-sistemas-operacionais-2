@@ -1,3 +1,6 @@
+#ifndef FILE_MANAGER
+#define FILE_MANAGER
+
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -20,3 +23,4 @@ namespace FileManager {
     std::vector<file_description> list_files(std::string path);
 }
 
+#endif // !FILE_MANAGER
