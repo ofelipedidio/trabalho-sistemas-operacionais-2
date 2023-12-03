@@ -13,9 +13,9 @@
 namespace Cli{
 
     std::string path;
+    std::istringstream iss;
 
     void init(const std::string& username){
-        
         path = "sync_dir_" + username;
 
         using Command_Function = std::function<void(const std::string&)>;
@@ -23,17 +23,17 @@ namespace Cli{
         std::map<std::string, Command_Function> command_map = {
             {"upload", [&username](const std::string& ) {
                 std::string filepath;
-                std::cin >> filepath;
+                iss >> filepath;
                 upload_file(username, filepath);
             }},
             {"download", [&username](const std::string& ) {
                 std::string filename;
-                std::cin >> filename;
+                iss >> filename;
                 download_file(username, filename);
             }},
             {"delete", [&username](const std::string&) {
                 std::string filename;
-                std::cin >> filename;
+                iss >> filename;
                 delete_file(username, filename);
             }},
             {"list_server", [&username](const std::string&) {
@@ -58,7 +58,7 @@ namespace Cli{
             std::cout<< "\033[92;1m" << username << "\033[0m> ";
             std::getline(std::cin, line);
             if(line.size() == 0)continue;
-            std::istringstream iss(line);
+            iss = std::istringstream(line);
             bool aux = (bool)(iss >> user_input);
             if(!aux)break;
             auto it = command_map.find(user_input);
@@ -95,7 +95,7 @@ namespace Cli{
     }
 
     void list_server_files(const std::string& username) {
-        std::vector<FileManager::file_description> server_files = App::list_server();
+        std::vector<netfs::file_description_t> server_files = App::list_server();
         if(server_files.empty()){
             std::cout<<"empty folder"<<std::endl;
             return;
@@ -105,7 +105,10 @@ namespace Cli{
     }
 
     void list_client_files(const std::string& username) {
-        std::vector<FileManager::file_description> client_files = FileManager::list_files(path);
+        std::vector<netfs::file_description_t> client_files;
+        if (!netfs::list_files(path, &client_files)) {
+            return;
+        }
         if(client_files.empty()){
             std::cout<<"empty folder"<<std::endl;
             return;
@@ -122,7 +125,7 @@ namespace Cli{
 
     tabulate::Table create_file_table(std::vector<netfs::file_description_t> files){
         tabulate::Table file_table;
-        file_table.format().width(20);
+        // file_table.format().width(40);
         file_table.add_row({"filename", "mtime", "atime", "ctime"});
 
         for(auto [filename, mtime, atime, ctime]:files) {
