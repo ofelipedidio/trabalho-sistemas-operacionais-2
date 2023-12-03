@@ -19,6 +19,7 @@
 #define STATUS_SUCCESS 10
 #define STATUS_EMPTY 11
 #define STATUS_FAIL 20
+#define STATUS_FILE_NOT_FOUND 21
 
 typedef enum {
     event_file_modified = 1,

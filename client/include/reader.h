@@ -10,33 +10,78 @@
 
 struct tcp_reader {
     int sockfd;
-    uint8_t read_buffer[RSIZE];
-    uint64_t read_start;
-    uint64_t read_end;
+    uint8_t a_buffer[RSIZE];
+    uint8_t b_buffer[RSIZE];
+    uint64_t index;
+    uint64_t length;
+    bool buffer_switch;
 };
+
+void print_reader(struct tcp_reader& reader);
 
 struct tcp_reader init_reader(int sockfd);
 
+/*  ###########################
+ *  #  Non-serialized access  #
+ *  ########################### */
+
+/*
+ * Fills the buffer
+ */
+bool fill_buffer(struct tcp_reader& reader);
+
+/*
+ * Checks if the connection is still valid
+ */
 bool ready(struct tcp_reader& reader);
 
-bool peek(struct tcp_reader& reader, uint64_t offset, uint8_t *byte);
+/*
+ * Gets the first character from the stream, but doesn't pop it
+ */
+bool peek(struct tcp_reader& reader, uint8_t *val);
 
-void advance(struct tcp_reader& reader, uint64_t amount);
+/*
+ * Pops the first character out of the stream
+ */
+bool step(struct tcp_reader& reader);
 
-bool read_char(struct tcp_reader& reader, char *c);
+/*  ################
+ *  #  Primitives  #
+ *  ################ */
 
-bool read_string(struct tcp_reader& reader, std::string *string);
+/* unsigned 8-bit integer */
+bool read_u8(struct tcp_reader& reader, uint8_t *val);
 
-bool read_u8(struct tcp_reader& reader, uint8_t *value);
+/* unsigned 16-bit integer */
+bool read_u16(struct tcp_reader& reader, uint16_t *val);
 
-bool read_u16(struct tcp_reader& reader, uint16_t *value);
+/* unsigned 32-bit integer */
+bool read_u32(struct tcp_reader& reader, uint32_t *val);
 
-bool read_u32(struct tcp_reader& reader, uint32_t *value);
+/* unsigned 64-bit integer */
+bool read_u64(struct tcp_reader& reader, uint64_t *val);
 
-bool read_u64(struct tcp_reader& reader, uint64_t *value);
+/* C 8-bit char */
+bool read_char(struct tcp_reader& reader, char *val);
 
+/*  ##############
+ *  #  Composed  #
+ *  ############## */
+
+/*
+ * Reads the length *u64) and length chars after that to construct the string
+ */
+bool read_string(struct tcp_reader& reader, std::string *val);
+
+/*
+ * Reads length bytes and stores in val
+ */
 bool read_bytes(struct tcp_reader& reader, uint8_t *val, uint64_t length);
 
-#endif // !READER 
+/*
+ * Reads the length (u64) and length u8's into a malloc-allocated buffer
+ */
+bool read_byte_array(struct tcp_reader& reader, uint8_t **val, uint64_t *length);
 
+#endif // !READER 
 

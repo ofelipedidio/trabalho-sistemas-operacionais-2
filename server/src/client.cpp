@@ -79,6 +79,7 @@ client_t *client_new(std::string username, connection_t *connection) {
     client->connection = connection;
     client->active = true;
     client->pending_events = std::queue<file_event_t>();
+    sem_init(&client->mutex, 0, 1);
 
     // Insert the new client into the client list
     clients.insert({username, client});
@@ -119,8 +120,9 @@ void client_broadcast_file_modified(std::string username, std::string filename) 
         sem_wait(&client->mutex);
         client->pending_events.push({event_file_modified, filename});
         sem_post(&client->mutex);
+        it++;
     }
-    sem_wait(&global_mutex);
+    sem_post(&global_mutex);
 }
 
 void client_broadcast_file_deleted(std::string username, std::string filename) {
@@ -131,8 +133,9 @@ void client_broadcast_file_deleted(std::string username, std::string filename) {
         sem_wait(&client->mutex);
         client->pending_events.push({event_file_deleted, filename});
         sem_post(&client->mutex);
+        it++;
     }
-    sem_wait(&global_mutex);
+    sem_post(&global_mutex);
 }
 
 bool client_get_event(client_t *client, file_event_t *out_event) {

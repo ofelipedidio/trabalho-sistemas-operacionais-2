@@ -36,6 +36,6 @@ test: clean compile
 	./bin/server
 
 clean:
-	rm -rf build bin
+	rm -rf build/* bin/server
 
 

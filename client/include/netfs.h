@@ -9,12 +9,16 @@
 namespace netfs {
     typedef struct {
         std::string filename;
-        uint64_t mac;
+        uint64_t mtime;
+        uint64_t atime;
+        uint64_t ctime;
     } file_description_t;
 
     typedef struct {
         uint64_t length;
-        uint64_t mac;
+        uint64_t mtime;
+        uint64_t atime;
+        uint64_t ctime;
         uint8_t* contents;
     } file_metadata_t;
     

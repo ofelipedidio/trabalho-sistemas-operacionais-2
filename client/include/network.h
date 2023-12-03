@@ -20,16 +20,18 @@ namespace Network {
         int task_id;
         std::string username;
         std::string filename;
+        std::string path;
         uint64_t content_length;
         uint8_t *content;
         std::vector<netfs::file_description_t> files;
+        bool success;
     } network_task_t;
 
     bool init(std::string ip, uint16_t port);
 
-    int upload_file(std::string username, std::string path);
-    int download_file(std::string username, std::string path);
-    int delete_file(std::string username, std::string path);
+    int upload_file(std::string username, std::string filename, std::string path);
+    int download_file(std::string username, std::string filename, std::string path);
+    int delete_file(std::string username, std::string filename);
     int client_exit(std::string username);
     int list_files(std::string username);
 

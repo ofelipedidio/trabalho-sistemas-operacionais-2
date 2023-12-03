@@ -67,10 +67,12 @@ void *client_handler_thread(void *_arg) {
     std::string filename;
     uint64_t length;
     uint8_t *bytes;
-    FileManager::file_metadata_t file_metadata;
-    std::vector<FileManager::file_description_t> files;
+    netfs::file_metadata_t file_metadata;
+    std::vector<netfs::file_description_t> files;
     bool running;
     file_event_t file_event;
+    char buffer[INET_ADDRSTRLEN];
+    inet_ntop( AF_INET, &client->connection->client_address, buffer, sizeof( buffer ));
 
     // Variable initialization
     client_dir = "sync_dir_" + client->username;
@@ -78,7 +80,9 @@ void *client_handler_thread(void *_arg) {
 
     // Server loop
     while (running) {
+        std::cerr << "[DEBUG] reading request" << std::endl;
         bool receive_success = receive_packet(client->connection, &header, &filename, &length, &bytes);
+        std::cerr << "[DEBUG] done reading request" << std::endl;
         if (!receive_success) {
             running = false;
             break;
@@ -86,43 +90,76 @@ void *client_handler_thread(void *_arg) {
 
         switch (header.packet_type) {
             case PACKET_TYPE_DOWNLOAD:
-                if (FileManager::read_file(client_dir + "/" + filename, &file_metadata)) {
+                std::cerr << "[" << client->connection->connection_id << "] Received a download request" << std::endl;
+                if (netfs::read_file(client_dir + "/" + filename, &file_metadata)) {
+                    std::cerr << "[" << client->connection->connection_id << "] Resolved a download request" << std::endl;
                     respond_download_success(client->connection, file_metadata.contents, file_metadata.length);
                     free(file_metadata.contents);
                 } else {
+                    std::cerr << "[" << client->connection->connection_id << "] Failed a download request" << std::endl;
                     respond_download_fail(client->connection);
+                    running = false;
                 }
                 break;
             case PACKET_TYPE_UPLOAD:
-                if (FileManager::write_file(client_dir + "/" + filename, bytes, length)) {
-                    respond_upload_success(client->connection);
+                std::cerr << "[" << client->connection->connection_id << "] Received a upload request" << std::endl;
+                if (netfs::write_file(client_dir + "/" + filename, bytes, length)) {
+                    std::cerr << "[" << client->connection->connection_id << "] Resolved a upload request" << std::endl;
+                    if (!respond_upload_success(client->connection)) {
+                        running = false;
+                    }
                     client_broadcast_file_modified(client->username, filename);
                 } else {
-                    respond_upload_fail(client->connection);
+                    std::cerr << "[" << client->connection->connection_id << "] Failed a upload request" << std::endl;
+                    if (!respond_upload_fail(client->connection)) {
+                        running = false;
+                    }
+                    running = false;
                 }
                 free(bytes);
                 break;
             case PACKET_TYPE_DELETE:
-                if (FileManager::delete_file(client_dir + "/" + filename)) {
-                    respond_delete_success(client->connection);
+                std::cerr << "[" << client->connection->connection_id << "] Received a delete request" << std::endl;
+                if (netfs::delete_file(client_dir + "/" + filename)) {
+                    std::cerr << "[" << client->connection->connection_id << "] Resolved a delete request" << std::endl;
+                    if (!respond_delete_success(client->connection)) {
+                        running = false;
+                    }
                     client_broadcast_file_deleted(client->username, filename);
                 } else {
-                    respond_delete_fail(client->connection);
+                    std::cerr << "[" << client->connection->connection_id << "] Failed a delete request" << std::endl;
+                    if (!respond_delete_fail(client->connection)) {
+                        running = false;
+                    }
+                    running = false;
                 }
                 break;
             case PACKET_TYPE_LIST_FILES:
-                if (FileManager::list_files(client_dir, &files)) {
-                    respond_list_files_success(client->connection, files);
+                std::cerr << "[" << client->connection->connection_id << "] Received a list_files request" << std::endl;
+                if (netfs::list_files(client_dir, &files)) {
+                    std::cerr << "[" << client->connection->connection_id << "] Resolved a list_files request" << std::endl;
+                    if (!respond_list_files_success(client->connection, files)) {
+                        running = false;
+                    }
                     files.clear();
                 } else {
-                    respond_list_files_fail(client->connection);
+                    std::cerr << "[" << client->connection->connection_id << "] Failed a list_files request" << std::endl;
+                    if (!respond_list_files_fail(client->connection)) {
+                        running = false;
+                    }
                 }
                 break;
             case PACKET_TYPE_UPDATE:
+                std::cerr << "[" << client->connection->connection_id << "] Received a update request" << std::endl;
                 if (client_get_event(client, &file_event)) {
-                    respond_update_some(client->connection, file_event);
+                    std::cerr << "[" << client->connection->connection_id << "] Resolved a update request" << std::endl;
+                    if (!respond_update_some(client->connection, file_event)) {
+                        running = false;
+                    }
                 } else {
-                    respond_update_none(client->connection);
+                    if (!respond_update_none(client->connection)) {
+                        running = false;
+                    }
                 }
                 break;
             default:
@@ -130,6 +167,8 @@ void *client_handler_thread(void *_arg) {
                 break;
         }
     }
+
+    std::cerr << "[" << client->connection->connection_id << "] Closed connection" << std::endl;
 
     // Invalidate client and exit
     client->active = false;
@@ -140,6 +179,7 @@ void *client_handler_thread(void *_arg) {
 
 void handle_connection(connection_t *connection) {
     add_connection(connection->sockfd);
+
     char buffer[INET_ADDRSTRLEN];
     inet_ntop( AF_INET, &connection->client_address, buffer, sizeof( buffer ));
 

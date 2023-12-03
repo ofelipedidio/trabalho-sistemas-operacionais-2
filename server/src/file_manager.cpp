@@ -10,7 +10,7 @@
 #include <iostream>
 #include <sys/stat.h>
 
-namespace FileManager {
+namespace netfs {
     bool write_file(std::string path, uint8_t *buf, uint64_t length) {
         // Open the file
         FILE *file = fopen(path.c_str(), "w");
@@ -85,13 +85,15 @@ namespace FileManager {
             std::cerr << "ERROR: [reading file `" << path << "`] stat failed with errno = `" << errno << "`" << std::endl;
             return false;
         }
-        uint64_t mac = _stat.st_mtime;
+        uint64_t mtime = _stat.st_mtime;
+        uint64_t atime = _stat.st_atime;
+        uint64_t ctime = _stat.st_ctime;
 
         // Close the file
         fclose(file);
 
         // Return
-        *out_metadata = {length, mac, bytes};
+        *out_metadata = {length, mtime, atime, ctime, bytes};
         return true;
     }
 
@@ -119,6 +121,11 @@ namespace FileManager {
                 if (stat(filename.c_str(), &result) == 0) {
                     auto mod_time = result.st_mtime;
                     uint64_t modified_time = mod_time;
+
+                    std::string::size_type i = filename.find(path);
+                    if (i != std::string::npos) {
+                        filename.erase(i, path.length()+1);
+                    }
                     files_list.push_back({filename, modified_time});
                 } else {
                     std::cout << "ERROR [listing files `" << path << "`] Could not stat file `" << filename << "`" << std::endl;

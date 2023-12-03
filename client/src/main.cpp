@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <sstream>
+#include <unistd.h>
 #ifdef TEST_MODE
 #include "test.h"
 #endif
@@ -35,21 +36,21 @@ int main(int argc, char **argv) {
 
     system(("mkdir -p sync_dir_" + username).c_str());
 
+    std::cerr << "[Initialization] Starting App" << std::endl;
     App::init(username);
 
     // Start networking thread
+    std::cerr << "[Initialization] Starting Network" << std::endl;
     if (!Network::init(ip, port)) {
         return EXIT_FAILURE;
     }
-
-    Network::download_file(username, std::string("didio.txt"));
     
-    FileManager::delete_file("asd");
-    
+    std::cerr << "[Initialization] Starting FSNotify" << std::endl;
     FSNotify::init(username);
 
+    std::cerr << "[Initialization] Starting Cli" << std::endl;
     Cli::init(username);
-  
+
     return 0;
 }
 

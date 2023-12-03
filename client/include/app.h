@@ -14,7 +14,7 @@ namespace App {
     void notify_modified(std::string filename);
     void notify_deleted(std::string filename);
 
-    void network_new_file(std::string filename, uint8_t *buf);
+    void network_modified(std::string filename, uint8_t *buf, uint64_t length);
     void network_modified(std::string filename, uint8_t *buf);
     void network_deleted(std::string filename);
     

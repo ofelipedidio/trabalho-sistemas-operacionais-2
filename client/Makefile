@@ -36,5 +36,5 @@ test: clean compile
 	./bin/client
 
 clean:
-	rm -rf build bin
+	rm -rf build/* bin/client
 

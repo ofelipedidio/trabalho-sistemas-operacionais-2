@@ -109,13 +109,13 @@ namespace Cli{
 
     tabulate::Table create_file_table(std::vector<netfs::file_description_t> files){
         tabulate::Table file_table;
-        file_table.add_row({"filename", "mac"});
+        file_table.add_row({"filename", "mtime", "atime", "ctime"});
 
-        for(auto [filename, mac]:files){
-            file_table.add_row({filename, std::to_string(mac)});
+        for(auto [filename, mtime, atime, ctime]:files) {
+            file_table.add_row({filename, std::to_string(mtime), std::to_string(atime), std::to_string(ctime)});
         }
 
-        for (size_t i = 0; i < 2; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             file_table[0][i].format()
             .font_color(tabulate::Color::yellow)
             .font_align(tabulate::FontAlign::center)
