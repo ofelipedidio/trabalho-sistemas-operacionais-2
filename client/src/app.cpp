@@ -1,10 +1,13 @@
 #include "../include/app.h"
+#include <cstdint>
 #include <unordered_map>
 #include <functional>
 #include <fstream>
 #include <iostream>
 #include <semaphore.h>
 #include <filesystem>
+
+#include "../include/netfs.h"
 
 namespace App
 {
@@ -47,7 +50,7 @@ namespace App
         {
             std::string path_file = path + "/" + filename;
             dir_hash[filename] = hash_file(filename);
-            Network::upload_file(username, path_file);
+            Network::upload_file(username, filename, path_file);
         }
         sem_post(&mutex);
     }
@@ -59,7 +62,7 @@ namespace App
         {
             std::string path_file = path + "/" + filename;
             dir_hash[filename] = hash_file(filename);
-            Network::upload_file(username, path_file);
+            Network::upload_file(username, filename, path_file);
         }
         sem_post(&mutex);
     }
@@ -91,7 +94,7 @@ namespace App
         sem_post(&mutex);
     }
 
-    void network_modified(std::string filename, uint8_t *buf)
+    void network_modified(std::string filename, uint8_t *buf, uint64_t length)
     {
         sem_wait(&mutex);
 
@@ -99,7 +102,7 @@ namespace App
         {
             std::string path_file = path + "/" + filename;
             dir_hash[filename] = hash_file(filename);
-            if (!FileManager::write_file(path_file, buf))
+            if (!netfs::write_file(path_file, buf, length))
             {
                 std::cout << "Failed to create file from server: " << filename << std::endl;
             }
@@ -118,10 +121,10 @@ namespace App
         sem_post(&mutex);
     }
 
-    std::vector<FileManager::file_description> list_server()
+    std::vector<netfs::file_description_t> list_server()
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         int task_id = Network::list_files(username);
         Network::get_task_by_id(task_id, &task);
         sem_post(&mutex);
@@ -131,24 +134,28 @@ namespace App
     void upload_file(std::string path)
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         std::string filename = std::filesystem::path(path).filename().string();
-        Network::upload_file(username, filename);
+        Network::upload_file(username, filename, path);
         sem_post(&mutex);
     }
 
     void download_file(std::string filename)
     {
         sem_wait(&mutex);
-        // TODO
+        Network::download_file(username, filename, "./" + filename);
         sem_post(&mutex);
     }
 
     void delete_file(std::string filename)
     {
         sem_wait(&mutex);
-        Network::network_task task;
+        Network::network_task_t task;
         Network::delete_file(username, filename);        
         sem_post(&mutex);
+    }
+
+    std::string get_username() {
+        return App::username;
     }
 }

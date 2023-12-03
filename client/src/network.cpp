@@ -19,6 +19,9 @@
 
 #include "../include/async_queue.h"
 #include "../include/network.h"
+#include "../include/connection.h"
+#include "../include/protocol.h"
+#include "../include/app.h"
 
 namespace Network {
     pthread_t network_thread;
@@ -26,38 +29,195 @@ namespace Network {
     uint16_t port;
     std::atomic<int> last_task_id;
     int sockfd;
+    connection_t *connection;
 
     namespace __internal {
-        AsyncQueue::async_queue<Network::network_task> task_queue;
-        AsyncQueue::async_queue<Network::network_task> done_queue;
+        AsyncQueue::async_queue<Network::network_task_t> task_queue;
+        AsyncQueue::async_queue<Network::network_task_t> done_queue;
 
         /*
          * The networking thread function
          */
         void *thread_function(void* p) {
-            network_task task;
+            network_task_t task;
+            uint8_t status;
+            uint8_t *buf;
+            uint64_t length;
+            bool running;
+            netfs::file_metadata_t metadata;
+            file_event_t file_event;
 
             while (true) {
-                task = task_queue.pop();
-                
-                // TODO - Didio: Process the task
-                switch (task.type) {
-                    case TASK_LIST_FILES:
-                        break;
-                    case TASK_UPLOAD:
-                        break;
-                    case TASK_DOWNLOAD:
-                        break;
-                    case TASK_DELETE:
-                        break;
-                    case TASK_EXIT:
-                        break;
+                running = true;
+
+                while (running) {
+                    std::optional<network_task_t> _task = task_queue.try_pop();
+                    if (_task.has_value()) {
+                        switch (task.type) {
+                            case TASK_LIST_FILES:
+                                std::cerr << "[Network thread] Handling a list_files task" << std::endl;
+                                if (request_list_files(connection, &status, &task.files)) {
+                                    std::cerr << "[Network thread] Succeded on the list_files task" << std::endl;
+                                    task.success = true;
+                                } else {
+                                    std::cerr << "[Network thread] Failed on the list_files task" << std::endl;
+                                    running = false;
+                                    task.success = false;
+                                }
+                                break;
+                            case TASK_UPLOAD:
+                                std::cerr << "[Network thread] Handling a upload task" << std::endl;
+                                if (netfs::read_file(task.path, &metadata)) {
+                                    if (request_upload(connection, task.filename, metadata.contents, metadata.length, &status)) {
+                                        if (status == STATUS_SUCCESS) {
+                                            std::cerr << "[Network thread] Succeded on the upload task" << std::endl;
+                                            task.success = true;
+                                        } else if (status == STATUS_FILE_NOT_FOUND) {
+                                            std::cerr << "[Network thread] Server doesn't have file `" << task.filename << "`" << std::endl;
+                                        } else {
+                                            std::cerr << "ERROR: [Network] Server was unable to receive file `" << task.filename << "`" << std::endl;
+                                            task.success = false;
+                                        }
+                                    } else {
+                                        std::cerr << "[Network thread] Failed on the upload task" << std::endl;
+                                        running = false;
+                                        task.success = false;
+                                    }
+                                } else {
+                                    std::cerr << "ERROR: [NetFS] Could not read file `" << task.path << "`" << std::endl;
+                                    running = false;
+                                    task.success = false;
+                                }
+                                break;
+                            case TASK_DOWNLOAD:
+                                std::cerr << "[Network thread] Handling a download task" << std::endl;
+
+                                if (request_download(connection, task.filename, &status, &buf, &length)) {
+                                    if (status == STATUS_SUCCESS) {
+                                        if (netfs::write_file(task.path, buf, length)) {
+                                            std::cerr << "[Network thread] Succeded on the download task" << std::endl;
+                                            task.success = true;
+                                        } else {
+                                            std::cerr << "ERROR: [NetFS] Could not write file `" << task.path << "`" << std::endl;
+                                            task.success = false;
+                                        }
+                                    } else {
+                                        std::cerr << "ERROR: [Network] Server was unable to send file `" << task.filename << "`" << std::endl;
+                                        task.success = false;
+                                    }
+                                } else {
+                                    std::cerr << "[Network thread] Failed on the download task" << std::endl;
+                                    running = false;
+                                    task.success = false;
+                                }
+                                break;
+                            case TASK_DELETE:
+                                std::cerr << "[Network thread] Handling a delete task" << std::endl;
+                                if (request_delete(connection, task.filename, &status)) {
+                                    if (status == STATUS_SUCCESS) {
+                                        std::cerr << "[Network thread] Succeded on the delete task" << std::endl;
+                                        task.success = true;
+                                    } else {
+                                        std::cerr << "ERROR: [Network] Server was unable to delete file `" << task.filename << "`" << std::endl;
+                                        task.success = false;
+                                    }
+                                } else {
+                                    std::cerr << "[Network thread] Failed on the delete task" << std::endl;
+                                    running = false;
+                                    task.success = false;
+                                }
+                                break;
+                            case TASK_EXIT:
+                                std::cerr << "[Network thread] Handling a exit task" << std::endl;
+                                if (request_exit(connection)) {
+                                    std::cerr << "[Network thread] Succeded on the exit task" << std::endl;
+                                    task.success = true;
+                                } else {
+                                    std::cerr << "[Network thread] Failed on the exit task" << std::endl;
+                                    running = false;
+                                    task.success = false;
+                                }
+                                break;
+                            default:
+                                running = false;
+                                break;
+                        }
+
+                        done_queue.push(task.task_id, task);
+                    }
+
+                    if (request_update(connection, &status, &file_event)) {
+                        if (status == STATUS_SUCCESS) {
+                            switch (file_event.type) {
+                                case event_file_modified:
+                                    if (request_download(connection, file_event.filename, &status, &buf, &length)) {
+                                        App::network_modified(file_event.filename, buf, length);
+                                    } else {
+                                        running = false;
+                                    }
+                                    break;
+                                case event_file_deleted:
+                                    App::network_deleted(file_event.filename);
+                                    break;
+                            }
+                        }
+                    } else {
+                        running = false;
+                    }
+
+                    if (!_task.has_value()) {
+                        sleep(1);
+                    }
                 }
 
-                done_queue.push(task.task_id, task);
+                std::cerr << "[Network] closed connection" << std::endl;
+
+                /*
+                 * Create socket and connect to server
+                 */
+                {
+                    std::cerr << "[Network] Starting socket" << std::endl;
+                    struct sockaddr_in server_addr;
+                    server_addr.sin_family = AF_INET;
+                    server_addr.sin_port = htons(port);
+                    inet_aton(ip.c_str(), &server_addr.sin_addr);
+                    bzero(&server_addr.sin_zero, 8);
+
+                    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (sockfd == -1) {
+                        std::cerr << "ERROR: [Network reset] Could not create the socket" << std::endl;
+                        break;
+                    }
+
+                    std::cerr << "[Network] Connecting to the server" << std::endl;
+                    int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+                    if (connect_response < 0) {
+                        std::cerr << "ERROR: [Network reset] Could not connect to the server" << std::endl;
+                        break;
+                    }
+
+                    connection = conn_new(
+                            server_addr.sin_addr,
+                            ntohs(server_addr.sin_port),
+                            sockfd);
+
+                    std::cerr << "[Network] Performing handshake" << std::endl;
+                    uint8_t status;
+                    if (!request_handshake(connection, App::get_username(), &status)) {
+                        std::cerr << "ERROR: [Network reset] Failed to handshake" << std::endl;
+                        break;
+                    }
+
+                    if (status != STATUS_SUCCESS) {
+                        std::cerr << "ERROR: [Network reset] Too many connections to the server with the same username" << std::endl;
+                        break;
+                    }
+                }
             }
 
+            // TODO - Didio: unwind
             pthread_exit(nullptr);
+            return nullptr;
         }
     }
 
@@ -68,13 +228,14 @@ namespace Network {
         Network::ip = ip;
         Network::port = port;
 
-        __internal::task_queue = AsyncQueue::async_queue<network_task>();
-        __internal::done_queue = AsyncQueue::async_queue<network_task>();
+        __internal::task_queue = AsyncQueue::async_queue<network_task_t>();
+        __internal::done_queue = AsyncQueue::async_queue<network_task_t>();
 
         /*
          * Create socket and connect to server
          */
         {
+            std::cerr << "[Network] Starting socket" << std::endl;
             struct sockaddr_in server_addr;
             server_addr.sin_family = AF_INET;
             server_addr.sin_port = htons(port);
@@ -83,13 +244,31 @@ namespace Network {
 
             sockfd = socket(AF_INET, SOCK_STREAM, 0);
             if (sockfd == -1) {
-                // TODO - Didio: Handle error;
+                std::cerr << "ERROR: [Network init] Could not create the socket" << std::endl;
                 return false;
             }
 
+            std::cerr << "[Network] Connecting to the server" << std::endl;
             int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
             if (connect_response < 0) {
-                // TODO - Didio: Handle error
+                std::cerr << "ERROR: [Network init] Could not connect to the server" << std::endl;
+                return false;
+            }
+
+            connection = conn_new(
+                    server_addr.sin_addr,
+                    ntohs(server_addr.sin_port),
+                    sockfd);
+
+            std::cerr << "[Network] Performing handshake" << std::endl;
+            uint8_t status;
+            if (!request_handshake(connection, App::get_username(), &status)) {
+                std::cerr << "ERROR: [Network init] Failed to handshake" << std::endl;
+                return false;
+            }
+
+            if (status != STATUS_SUCCESS) {
+                std::cerr << "ERROR: [Network init] Too many connections to the server with the same username" << std::endl;
                 return false;
             }
         }
@@ -102,15 +281,18 @@ namespace Network {
      * Adds an upload task to the task queue and returns the task id
      */
     // TODO : accept filename and path
-    int upload_file(std::string username, std::string path) {
+    int upload_file(std::string username, std::string filename, std::string path) {
         int task_id = last_task_id++;
         __internal::task_queue.push(task_id, {
                 TASK_UPLOAD, 
                 task_id, 
                 username,
+                filename,
                 path,
+                0,
                 nullptr,
-                std::vector<FileManager::file_description>(),
+                std::vector<netfs::file_description_t>(),
+                false,
                 });
         return task_id;
     }
@@ -118,15 +300,18 @@ namespace Network {
     /*
      * Adds a download task to the task queue and returns the task id
      */
-    int download_file(std::string username, std::string path) {
+    int download_file(std::string username, std::string filename, std::string path) {
         int task_id = last_task_id++;
         __internal::task_queue.push(task_id, {
                 TASK_DOWNLOAD, 
                 task_id, 
                 username,
+                filename,
                 path,
+                0,
                 nullptr,
-                std::vector<FileManager::file_description>(),
+                std::vector<netfs::file_description_t>(),
+                false,
                 });
         return task_id;
     }
@@ -134,15 +319,18 @@ namespace Network {
     /*
      * Adds a delete task to the task queue and returns the task id
      */
-    int delete_file(std::string username, std::string path) {
+    int delete_file(std::string username, std::string filename) {
         int task_id = last_task_id++;
         __internal::task_queue.push(task_id, {
                 TASK_DELETE, 
                 task_id, 
                 username,
-                path,
+                filename,
+                filename,
+                0,
                 nullptr,
-                std::vector<FileManager::file_description>(),
+                std::vector<netfs::file_description_t>(),
+                false,
                 });
         return task_id;
     }
@@ -157,8 +345,11 @@ namespace Network {
                 task_id, 
                 username,
                 "",
+                "",
+                0,
                 nullptr,
-                std::vector<FileManager::file_description>(),
+                std::vector<netfs::file_description_t>(),
+                false,
                 });
         return task_id;
     }
@@ -173,8 +364,11 @@ namespace Network {
                 task_id, 
                 username,
                 "",
+                "",
+                0,
                 nullptr,
-                std::vector<FileManager::file_description>(),
+                std::vector<netfs::file_description_t>(),
+                false,
                 });
         return task_id;
     }
@@ -183,10 +377,10 @@ namespace Network {
      * Attempts to get a done task from the done queue. 
      * Returns true, if there is a task in the done queue. Returns false otherwise.
      */
-    bool try_get_task(network_task *task) {
-        std::optional<network_task> _done_task = __internal::done_queue.try_pop();
+    bool try_get_task(network_task_t *task) {
+        std::optional<network_task_t> _done_task = __internal::done_queue.try_pop();
         if (_done_task) {
-            network_task done_task = _done_task.value();
+            network_task_t done_task = _done_task.value();
             task->type = done_task.type;
             task->task_id = done_task.task_id;
             task->username = done_task.username;
@@ -203,8 +397,8 @@ namespace Network {
      * Attempts to get a done task from the done queue.
      * Immediately returns, if there is a task in the done queue, waits otherwise.
      */
-    void get_task(network_task *task) {
-        network_task done_task = __internal::done_queue.pop();
+    void get_task(network_task_t *task) {
+        network_task_t done_task = __internal::done_queue.pop();
 
         // Copy the data from the done task to task
         task->type = done_task.type;
@@ -214,11 +408,11 @@ namespace Network {
         task->content = done_task.content;
         task->files = done_task.files;
     }
-    
-    bool try_get_task_by_id(int task_id, network_task *task) {
-        std::optional<network_task> _done_task = __internal::done_queue.try_pop_by_id(task_id);
+
+    bool try_get_task_by_id(int task_id, network_task_t *task) {
+        std::optional<network_task_t> _done_task = __internal::done_queue.try_pop_by_id(task_id);
         if (_done_task) {
-            network_task done_task = _done_task.value();
+            network_task_t done_task = _done_task.value();
             task->type = done_task.type;
             task->task_id = done_task.task_id;
             task->username = done_task.username;
@@ -231,8 +425,8 @@ namespace Network {
         }
     }
 
-    void get_task_by_id(int task_id, network_task *task) {
-        network_task done_task = __internal::done_queue.pop_by_id(task_id);
+    void get_task_by_id(int task_id, network_task_t *task) {
+        network_task_t done_task = __internal::done_queue.pop_by_id(task_id);
 
         // Copy the data from the done task to task
         task->type = done_task.type;

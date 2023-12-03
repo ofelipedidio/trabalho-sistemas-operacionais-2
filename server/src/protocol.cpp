@@ -55,12 +55,7 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
             break;
         case PACKET_TYPE_UPLOAD:
             read_string(connection->reader, filename);
-            read_u64(connection->reader, length);
-            *bytes = (uint8_t*) malloc(sizeof(uint8_t)*(*length));
-            if (*bytes == NULL) {
-                return false;
-            }
-            read_bytes(connection->reader, *bytes, *length);
+            read_byte_array(connection->reader, bytes, length);
             break;
         case PACKET_TYPE_DELETE:
             read_string(connection->reader, filename);
@@ -78,84 +73,186 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
     return true;
 }
 
-void respond_handshake_success(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    flush(connection->writer);
-}
-
-void respond_handshake_fail(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
-    flush(connection->writer);
-}
-
-void respond_download_success(connection_t *connection, uint8_t *buf, uint64_t length) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    write_bytes(connection->writer, buf, length);
-    flush(connection->writer);
-}
-
-void respond_download_fail(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
-    flush(connection->writer);
-}
-
-void respond_upload_success(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    flush(connection->writer);
-}
-
-void respond_upload_fail(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
-    flush(connection->writer);
-}
-
-void respond_delete_success(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    flush(connection->writer);
-}
-
-void respond_delete_fail(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
-    flush(connection->writer);
-}
-
-void respond_list_files_success(connection_t *connection, std::vector<FileManager::file_description_t> files) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    write_u64(connection->writer, (uint64_t) files.size());
-    for (std::size_t i = 0; i < files.size(); i++) {
-        write_u64(connection->writer, files[i].mac);
-        write_string(connection->writer, files[i].filename);
+bool respond_handshake_success(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
     }
-    flush(connection->writer);
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
 }
 
-void respond_list_files_fail(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_FAIL);
-    flush(connection->writer);
+bool respond_handshake_fail(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_FAIL)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
 }
 
-void respond_update_some(connection_t *connection, file_event_t event) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_SUCCESS);
-    write_u32(connection->writer, (uint32_t) event.type);
-    write_string(connection->writer, event.filename);
-    flush(connection->writer);
+bool respond_download_success(connection_t *connection, uint8_t *buf, uint64_t length) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!write_byte_array(connection->writer, buf, length)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
 }
 
-void respond_update_none(connection_t *connection) {
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, STATUS_EMPTY);
-    flush(connection->writer);
+bool respond_download_fail(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_FAIL)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_upload_success(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_upload_fail(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_FAIL)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_delete_success(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_delete_fail(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_FAIL)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_list_files_success(connection_t *connection, std::vector<netfs::file_description_t> files) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!write_u64(connection->writer, (uint64_t) files.size())) {
+        return false;
+    }
+    for (std::size_t i = 0; i < files.size(); i++) {
+        if (!write_u64(connection->writer, files[i].mtime)) {
+            return false;
+        }
+        if (!write_u64(connection->writer, files[i].atime)) {
+            return false;
+        }
+        if (!write_u64(connection->writer, files[i].ctime)) {
+            return false;
+        }
+        if (!write_string(connection->writer, files[i].filename)) {
+            return false;
+        }
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_list_files_fail(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_FAIL)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_update_some(connection_t *connection, file_event_t event) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_SUCCESS)) {
+        return false;
+    }
+    if (!write_u32(connection->writer, (uint32_t) event.type)) {
+        return false;
+    }
+    if (!write_string(connection->writer, event.filename)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
+}
+
+bool respond_update_none(connection_t *connection) {
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, STATUS_EMPTY)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
+    return true;
 }
 
 

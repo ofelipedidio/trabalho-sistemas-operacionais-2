@@ -32,7 +32,9 @@ namespace FileManager{
 
         if (!file.is_open()) 
         {
-            (*metadados).mac = 0;
+            (*metadados).mtime = 0;
+            (*metadados).atime = 0;
+            (*metadados).ctime = 0;
             (*metadados).length = 0;
             return metadados;
         }
@@ -40,8 +42,9 @@ namespace FileManager{
         
         struct stat mac;
         stat(path.c_str(), &mac);
-        auto mod_time = mac.st_mtime;
-        (*metadados).mac = mod_time;
+        (*metadados).mtime = (uint64_t) mac.st_mtime;
+        (*metadados).atime = (uint64_t) mac.st_atime;
+        (*metadados).ctime = (uint64_t) mac.st_ctime;
         (*metadados).length = size;
 
         (*metadados).contents = (u_int8_t*) malloc(size);
@@ -71,13 +74,10 @@ namespace FileManager{
                     std::string filename = entry.path().string();
                     if (stat(filename.c_str(), &result)==0)
                     {
-                        auto mod_time = result.st_mtime;
-                        uint64_t modified_time = mod_time;
-                        
                         std::string::size_type i = filename.find(path);
                         if (i != std::string::npos)
                             filename.erase(i, path.length()+1);
-                        files_list.emplace_back(filename, modified_time);
+                        files_list.emplace_back(filename, result.st_mtime, result.st_atime, result.st_ctime);
                     } else {
                         exit(69);
                     }

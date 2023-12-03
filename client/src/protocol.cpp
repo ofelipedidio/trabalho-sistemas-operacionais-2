@@ -1,14 +1,23 @@
 #include "../include/protocol.h"
 #include <cstdint>
+#include <ostream>
 
-bool request_handshake(connection_t *connection, std::string username, uint8_t *out_status) {
+bool request_handshake(connection_t *connection, std::string username,
+        uint8_t *out_status) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_HANDSHAKE);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_HANDSHAKE)) {
+        return false;
+    }
+    if (!write_string(connection->writer, username)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
-
-    // Receive the response
     uint16_t protocol_version;
     if (!read_u16(connection->reader, &protocol_version)) {
         return false;
@@ -23,12 +32,22 @@ bool request_handshake(connection_t *connection, std::string username, uint8_t *
     return true;
 }
 
-bool request_download(connection_t *connection, std::string filename, uint8_t *out_status, uint8_t **out_buf, uint64_t *out_length) {
+bool request_download(connection_t *connection, std::string filename,
+        uint8_t *out_status, uint8_t **out_buf,
+        uint64_t *out_length) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_DOWNLOAD);
-    write_string(connection->writer, filename);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_DOWNLOAD)) {
+        return false;
+    }
+    if (!write_string(connection->writer, filename)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     // Receive the response
     uint16_t protocol_version;
@@ -44,28 +63,31 @@ bool request_download(connection_t *connection, std::string filename, uint8_t *o
     if (*out_status != STATUS_SUCCESS) {
         return true;
     }
-    if (!read_u64(connection->reader, out_length)) {
-        return false;
-    }
-    *out_buf = (uint8_t*) malloc(sizeof(uint8_t)*(*out_length));
-    if (*out_buf == NULL) {
-        return false;
-    }
-    if (!read_bytes(connection->reader, *out_buf, *out_length)) {
-        free(out_buf);
+    if (!read_byte_array(connection->reader, out_buf, out_length)) {
         return false;
     }
 
     return true;
 }
 
-bool request_upload(connection_t *connection, std::string filename, uint8_t *buffer, uint64_t length, uint8_t *out_status) {
+bool request_upload(connection_t *connection, std::string filename,
+        uint8_t *buffer, uint64_t length, uint8_t *out_status) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_UPLOAD);
-    write_string(connection->writer, filename);
-    write_bytes(connection->writer, buffer, length);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_UPLOAD)) {
+        return false;
+    }
+    if (!write_string(connection->writer, filename)) {
+        return false;
+    }
+    if (!write_byte_array(connection->writer, buffer, length)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     // Receive the response
     uint16_t protocol_version;
@@ -82,12 +104,21 @@ bool request_upload(connection_t *connection, std::string filename, uint8_t *buf
     return true;
 }
 
-bool request_delete(connection_t *connection, std::string filename, uint8_t *out_status) {
+bool request_delete(connection_t *connection, std::string filename,
+        uint8_t *out_status) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_DELETE);
-    write_string(connection->writer, filename);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_DELETE)) {
+        return false;
+    }
+    if (!write_string(connection->writer, filename)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     // Receive the response
     uint16_t protocol_version;
@@ -104,11 +135,18 @@ bool request_delete(connection_t *connection, std::string filename, uint8_t *out
     return true;
 }
 
-bool request_list_files(connection_t *connection, uint8_t *out_status, std::vector<netfs::file_description_t> *out_files) {
+bool request_list_files(connection_t *connection, uint8_t *out_status,
+        std::vector<netfs::file_description_t> *out_files) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_LIST_FILES);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_LIST_FILES)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     // Receive the response
     uint16_t protocol_version;
@@ -128,11 +166,18 @@ bool request_list_files(connection_t *connection, uint8_t *out_status, std::vect
     if (!read_u64(connection->reader, &length)) {
         return false;
     }
-    std::vector<netfs::file_description_t> files = std::vector<netfs::file_description_t>();
+    std::vector<netfs::file_description_t> files =
+        std::vector<netfs::file_description_t>();
     files.reserve(length);
     for (uint64_t i = 0; i < length; i++) {
         netfs::file_description_t file_description;
-        if (!read_u64(connection->reader, &file_description.mac)) {
+        if (!read_u64(connection->reader, &file_description.mtime)) {
+            return false;
+        }
+        if (!read_u64(connection->reader, &file_description.atime)) {
+            return false;
+        }
+        if (!read_u64(connection->reader, &file_description.ctime)) {
             return false;
         }
         if (!read_string(connection->reader, &file_description.filename)) {
@@ -147,18 +192,31 @@ bool request_list_files(connection_t *connection, uint8_t *out_status, std::vect
 
 bool request_exit(connection_t *connection) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_EXIT);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_EXIT)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     return true;
 }
 
-bool request_update(connection_t *connection, uint8_t *out_status, file_event_t *out_event) {
+bool request_update(connection_t *connection, uint8_t *out_status,
+        file_event_t *out_event) {
     // Send the request
-    write_u16(connection->writer, PROTOCOL_VERSION);
-    write_u8(connection->writer, PACKET_TYPE_UPDATE);
-    flush(connection->writer);
+    if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
+        return false;
+    }
+    if (!write_u8(connection->writer, PACKET_TYPE_UPDATE)) {
+        return false;
+    }
+    if (!flush(connection->writer)) {
+        return false;
+    }
 
     // Receive the response
     uint16_t protocol_version;
@@ -190,7 +248,8 @@ bool request_update(connection_t *connection, uint8_t *out_status, file_event_t 
             out_event->type = event_file_deleted;
             break;
         default:
-            std::cerr << "ERROR: [requesting update] Got unknown event type (" << event_type << ")" << std::endl;
+            std::cerr << "ERROR: [requesting update] Got unknown event type ("
+                << event_type << ")" << std::endl;
             return false;
             break;
     }
@@ -198,4 +257,3 @@ bool request_update(connection_t *connection, uint8_t *out_status, file_event_t 
 
     return true;
 }
-

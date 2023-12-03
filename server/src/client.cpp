@@ -17,6 +17,7 @@ sem_t global_mutex;
 
 void client_init() {
     sem_init(&global_mutex, 0, 1);
+    clients = std::unordered_multimap<std::string, client_t*>();
 }
 
 /*
@@ -44,7 +45,7 @@ bool can_connect(std::string username) {
     auto range = clients.equal_range(username);
 
     for (auto it = range.first; it != range.second; ) {
-        if (_client_is_valid(it->second)) {
+        if (!_client_is_valid(it->second)) {
             client_free(it->second);
             clients.erase(it);
         } else {
@@ -72,7 +73,7 @@ client_t *client_new(std::string username, connection_t *connection) {
         sem_post(&global_mutex);
         return nullptr;
     }
-    
+
     // Initialize the client's variables
     client->username = username;
     client->connection = connection;
@@ -119,8 +120,9 @@ void client_broadcast_file_modified(std::string username, std::string filename) 
         sem_wait(&client->mutex);
         client->pending_events.push({event_file_modified, filename});
         sem_post(&client->mutex);
+        it++;
     }
-    sem_wait(&global_mutex);
+    sem_post(&global_mutex);
 }
 
 void client_broadcast_file_deleted(std::string username, std::string filename) {
@@ -131,8 +133,9 @@ void client_broadcast_file_deleted(std::string username, std::string filename) {
         sem_wait(&client->mutex);
         client->pending_events.push({event_file_deleted, filename});
         sem_post(&client->mutex);
+        it++;
     }
-    sem_wait(&global_mutex);
+    sem_post(&global_mutex);
 }
 
 bool client_get_event(client_t *client, file_event_t *out_event) {
