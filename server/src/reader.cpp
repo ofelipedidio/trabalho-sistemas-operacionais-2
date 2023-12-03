@@ -40,11 +40,13 @@ bool fill_buffer(struct tcp_reader& reader) {
         }
         reader.index = 0;
         reader.length = (uint64_t) read_size;
-        std::cerr << "Received data: (" << reader.length << ") [";
-        for (uint64_t i = 0; i < reader.length; i++) {
-            std::cerr << " " << std::hex << ((uint64_t) curr_buf(reader)[i]) << std::dec;
+        if (false) {
+            std::cerr << "Received data: (" << reader.length << ") [";
+            for (uint64_t i = 0; i < reader.length; i++) {
+                std::cerr << " " << std::hex << ((uint64_t) curr_buf(reader)[i]) << std::dec;
+            }
+            std::cerr << " ]" << std::endl;
         }
-        std::cerr << " ]" << std::endl;
     }
 
     return true;

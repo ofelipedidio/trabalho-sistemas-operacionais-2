@@ -94,16 +94,13 @@ namespace App
         sem_post(&mutex);
     }
 
-    void network_modified(std::string filename, uint8_t *buf, uint64_t length)
-    {
+    void network_modified(std::string filename, uint8_t *buf, uint64_t len) {
+        std::string path_file = path + "/" + filename;
         sem_wait(&mutex);
-
-        if (dir_hash.count(filename) == 0 || (dir_hash[filename] != hash_file(filename)))
-        {
-            std::string path_file = path + "/" + filename;
-            dir_hash[filename] = hash_file(filename);
-            if (!netfs::write_file(path_file, buf, length))
-            {
+        auto hash = hash_string(std::string((char*) buf, len));
+        if (dir_hash.count(filename) == 0 || (dir_hash[filename] != hash)) {
+            dir_hash[filename] = hash;
+            if (!netfs::write_file(path_file, buf, len)) {
                 std::cout << "Failed to create file from server: " << filename << std::endl;
             }
         }

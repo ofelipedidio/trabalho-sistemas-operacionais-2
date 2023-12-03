@@ -10,16 +10,25 @@
 #include "../include/file_manager.h"
 #include "../include/reader.h"
 #include "../include/writer.h"
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 bool read_header(connection_t *connection, packet_header_t *header) {
     packet_header_t _header;
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b1" << std::endl;
     if (!read_u16(connection->reader, &_header.protocol_version)) {
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b2" << std::endl;
         return false;
     }
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b3" << std::endl;
     if (!read_u8(connection->reader, &_header.packet_type)) {
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b4" << std::endl;
         return false;
     }
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b5" << std::endl;
     *header = _header;
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "b6" << std::endl;
     return true;
 }
 
@@ -39,13 +48,18 @@ bool handshake(connection_t *connection, std::string *username) {
 }
 
 bool receive_packet(connection_t *connection, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t **bytes) {
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a1" << std::endl;
     if (!read_header(connection, header)) {
+        std::cerr << "[" << syscall(__NR_gettid) << "] " << "a2" << std::endl;
         return false;
     }
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a3" << std::endl;
     if (header->protocol_version != PROTOCOL_VERSION) {
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a4" << std::endl;
         return false;
     }
 
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a5" << std::endl;
     switch (header->packet_type) {
         case PACKET_TYPE_HANDSHAKE:
             return false;
@@ -61,6 +75,7 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
             read_string(connection->reader, filename);
             break;
         case PACKET_TYPE_LIST_FILES:
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a6" << std::endl;
             break;
         case PACKET_TYPE_EXIT:
             break;
@@ -70,6 +85,7 @@ bool receive_packet(connection_t *connection, packet_header_t *header, std::stri
             return false;
             break;
     }
+    std::cerr << "[" << syscall(__NR_gettid) << "] " << "a7" << std::endl;
     return true;
 }
 

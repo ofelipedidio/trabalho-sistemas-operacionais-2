@@ -60,7 +60,6 @@ namespace FSNotify {
                         {
                             std::cerr << "failed to notify modification\n";
                         }
-                        
                     }
 
                     if ((event->mask & IN_CREATE) | (event->mask & IN_MOVED_TO)) {

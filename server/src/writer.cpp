@@ -13,11 +13,13 @@ struct tcp_writer init_writer(int sockfd) {
 }
 
 bool flush(struct tcp_writer& writer) {
-    std::cerr << "Sent data: (" << writer.index << ") [";
-    for (uint64_t i = 0; i < writer.index; i++) {
-        std::cerr << " " << std::hex << ((uint64_t) writer.buffer[i]) << std::dec;
+    if (false) {
+        std::cerr << "Sent data: (" << writer.index << ") [";
+        for (uint64_t i = 0; i < writer.index; i++) {
+            std::cerr << " " << std::hex << ((uint64_t) writer.buffer[i]) << std::dec;
+        }
+        std::cerr << " ]" << std::endl;
     }
-    std::cerr << " ]" << std::endl;
 
     int bytes_sent = send(writer.sockfd, writer.buffer, writer.index, 0);
     if (bytes_sent < 0) {
@@ -106,7 +108,7 @@ bool write_bytes(struct tcp_writer& writer, uint8_t *buf, uint64_t len) {
             return false;
         }
     }
-    return false;
+    return true;
 }
 
 bool write_byte_array(struct tcp_writer& writer, uint8_t *buf, uint64_t len) {
@@ -118,6 +120,6 @@ bool write_byte_array(struct tcp_writer& writer, uint8_t *buf, uint64_t len) {
             return false;
         }
     }
-    return false;
+    return true;
 }
 
