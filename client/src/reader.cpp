@@ -9,6 +9,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#define rnet_debug false
+
 void print_reader(struct tcp_reader& reader) {
     std::cerr << "Reader(sockfd=" << reader.sockfd << ", index=" << reader.index << ", length=" << reader.length << ")" << std::endl;
 }
@@ -42,7 +44,7 @@ bool fill_buffer(struct tcp_reader& reader) {
         }
         reader.index = 0;
         reader.length = (uint64_t) read_size;
-        if (false) {
+        if (rnet_debug) {
             std::cerr << "Received data: (" << reader.length << ") [";
             for (uint64_t i = 0; i < reader.length; i++) {
                 std::cerr << " " << std::hex << ((uint64_t) curr_buf(reader)[i]) << std::dec;

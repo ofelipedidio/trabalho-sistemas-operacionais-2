@@ -12,12 +12,12 @@
 
 #define MAX_ACTIVE_CONNECTIONS 2
 
-std::unordered_multimap<std::string, client_t*> clients;
+std::vector<client_t*> clients;
 sem_t global_mutex;
 
 void client_init() {
+    clients = std::vector<client_t*>();
     sem_init(&global_mutex, 0, 1);
-    clients = std::unordered_multimap<std::string, client_t*>();
 }
 
 /*
@@ -42,18 +42,29 @@ bool _client_is_valid(client_t *client) {
 
 // This assumes you have the mutex
 bool can_connect(std::string username) {
-    auto range = clients.equal_range(username);
+    std::vector<std::size_t> invalid_clients = std::vector<std::size_t>();
 
-    for (auto it = range.first; it != range.second; ) {
-        if (!_client_is_valid(it->second)) {
-            client_free(it->second);
-            clients.erase(it);
-        } else {
-            it++;
+    for (std::size_t i = 0; i < clients.size(); i++) {
+        if (!_client_is_valid(clients[i])) {
+            invalid_clients.push_back(i);
         }
     }
 
-    return clients.count(username) < MAX_ACTIVE_CONNECTIONS;
+    if (invalid_clients.size() > 0) {
+        for (std::size_t i = invalid_clients.size()-1; i >= 0; i--) {
+            clients.erase(std::next(clients.begin(), invalid_clients[i]));
+        }
+    }
+
+    int count = 0;
+    for (std::size_t i = 0; i < clients.size(); i++) {
+        if (clients[i]->username == username) {
+            count++;
+        }
+    }
+
+    std::cerr << "(" << username << ", " << count << ")" << std::endl;
+    return count < MAX_ACTIVE_CONNECTIONS;
 }
 
 client_t *client_new(std::string username, connection_t *connection) {
@@ -82,7 +93,7 @@ client_t *client_new(std::string username, connection_t *connection) {
     sem_init(&client->mutex, 0, 1);
 
     // Insert the new client into the client list
-    clients.insert({username, client});
+    clients.push_back(client);
 
     sem_post(&global_mutex);
     return client;
@@ -90,18 +101,22 @@ client_t *client_new(std::string username, connection_t *connection) {
 
 void client_remove(client_t *client) {
     sem_wait(&global_mutex);
-
     client->active = false;
-    auto range = clients.equal_range(client->username);
 
-    for (auto it = range.first; it != range.second; ) {
-        if (_client_is_valid(it->second)) {
-            client_free(it->second);
-            clients.erase(it);
-        } else {
-            it++;
+    int client_index = -1;
+    for (std::size_t i = 0; i < clients.size(); i++) {
+        if (clients[i]->connection->connection_id == client->connection->connection_id) {
+            client_index = i;
+            break;
         }
     }
+
+    if (client_index < 0) {
+        return;
+    }
+
+    clients.erase(std::next(clients.begin(), client_index));
+    client_free(client);
 
     sem_post(&global_mutex);
 }
@@ -114,26 +129,26 @@ void client_free(client_t *client) {
 
 void client_broadcast_file_modified(std::string username, std::string filename) {
     sem_wait(&global_mutex);
-    auto range = clients.equal_range(username);
-    for (auto it = range.first; it != range.second; ) {
-        client_t *client = it->second;
-        sem_wait(&client->mutex);
-        client->pending_events.push({event_file_modified, filename});
-        sem_post(&client->mutex);
-        it++;
+    for (std::size_t i = 0; i < clients.size(); i++) {
+        if (clients[i]->username == username) {
+            sem_wait(&clients[i]->mutex);
+            std::cerr << "broadcasting file modified to `" << username << "`(" << clients[i]->connection->connection_id << ") for file `" << filename << "`" << std::endl;
+            clients[i]->pending_events.push({event_file_modified, filename});
+            sem_post(&clients[i]->mutex);
+        }
     }
     sem_post(&global_mutex);
 }
 
 void client_broadcast_file_deleted(std::string username, std::string filename) {
     sem_wait(&global_mutex);
-    auto range = clients.equal_range(username);
-    for (auto it = range.first; it != range.second; ) {
-        client_t *client = it->second;
-        sem_wait(&client->mutex);
-        client->pending_events.push({event_file_deleted, filename});
-        sem_post(&client->mutex);
-        it++;
+    for (std::size_t i = 0; i < clients.size(); i++) {
+        if (clients[i]->username == username) {
+            sem_wait(&clients[i]->mutex);
+            std::cerr << "broadcasting file deleted to `" << username << "`(" << clients[i]->connection->connection_id << ") for file `" << filename << "`" << std::endl;
+            clients[i]->pending_events.push({event_file_deleted, filename});
+            sem_post(&clients[i]->mutex);
+        }
     }
     sem_post(&global_mutex);
 }

@@ -1,7 +1,7 @@
 CXX = g++
 # -Wall: Generate all warning
 # -g: Keep debugging symbols
-CXXFLAGS = -Wall -g -fsanitize=leak
+CXXFLAGS = -Wall -g
 
 # Project files
 SRC = $(wildcard src/*.cpp)

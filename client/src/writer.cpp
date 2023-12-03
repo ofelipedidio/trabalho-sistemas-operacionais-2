@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <iostream>
 
+#define wnet_debug false
+
 struct tcp_writer init_writer(int sockfd) {
     struct tcp_writer reader;
     reader.sockfd = sockfd;
@@ -13,7 +15,7 @@ struct tcp_writer init_writer(int sockfd) {
 }
 
 bool flush(struct tcp_writer& writer) {
-    if (false) {
+    if (wnet_debug) {
         std::cerr << "Sent data: (" << writer.index << ") [";
         for (uint64_t i = 0; i < writer.index; i++) {
             std::cerr << " " << std::hex << ((uint64_t) writer.buffer[i]) << std::dec;

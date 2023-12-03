@@ -80,9 +80,7 @@ void *client_handler_thread(void *_arg) {
 
     // Server loop
     while (running) {
-        std::cerr << "[DEBUG] reading request" << std::endl;
         bool receive_success = receive_packet(client->connection, &header, &filename, &length, &bytes);
-        std::cerr << "[DEBUG] done reading request" << std::endl;
         if (!receive_success) {
             running = false;
             break;
@@ -93,7 +91,9 @@ void *client_handler_thread(void *_arg) {
                 std::cerr << "[" << client->connection->connection_id << "] Received a download request" << std::endl;
                 if (netfs::read_file(client_dir + "/" + filename, &file_metadata)) {
                     std::cerr << "[" << client->connection->connection_id << "] Resolved a download request" << std::endl;
-                    respond_download_success(client->connection, file_metadata.contents, file_metadata.length);
+                    if (!respond_download_success(client->connection, file_metadata.contents, file_metadata.length)) {
+                        std::cerr << "dumbass didn't check" << std::endl;
+                    }
                     free(file_metadata.contents);
                 } else {
                     std::cerr << "[" << client->connection->connection_id << "] Failed a download request" << std::endl;
@@ -150,9 +150,7 @@ void *client_handler_thread(void *_arg) {
                 }
                 break;
             case PACKET_TYPE_UPDATE:
-                std::cerr << "[" << client->connection->connection_id << "] Received a update request" << std::endl;
                 if (client_get_event(client, &file_event)) {
-                    std::cerr << "[" << client->connection->connection_id << "] Resolved a update request" << std::endl;
                     if (!respond_update_some(client->connection, file_event)) {
                         running = false;
                     }
@@ -171,7 +169,6 @@ void *client_handler_thread(void *_arg) {
     std::cerr << "[" << client->connection->connection_id << "] Closed connection" << std::endl;
 
     // Invalidate client and exit
-    client->active = false;
     client_remove(client);
     pthread_exit(nullptr);
     return nullptr;
