@@ -11,12 +11,11 @@
 
 namespace FileManager{
 
-    bool write_file(std::string path, uint8_t *buf){ //true em caso de sucesso
+    bool write_file(std::string path, uint8_t *buf){ 
         std::ofstream file;
-        // Felipe K - por enquanto inotify não manda eventos enquanto o write estiver ativo
-        // porém vai enviar a notificação após o fim do write
+        // Felipe K - inotify doesnt send events while write is active
         sem_wait(&FSNotify::enable_notify);
-        file.open(path, std::ios::out | std::ios::trunc);// opens file for output and deletes what was already there
+        file.open(path, std::ios::out | std::ios::trunc);
         if(file.is_open()){
             file << buf;
             file.close();
@@ -31,7 +30,7 @@ namespace FileManager{
         std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
         File_Metadata* metadados = (File_Metadata*) malloc(sizeof(File_Metadata));
 
-        if (!file.is_open()) //retorna um metadado com 0 caso não consiga acessar o arquivo
+        if (!file.is_open()) 
         {
             (*metadados).mtime = 0;
             (*metadados).atime = 0;
@@ -55,7 +54,7 @@ namespace FileManager{
         return metadados;
     }
 
-    bool delete_file(std::string path){//true em caso de sucesso 
+    bool delete_file(std::string path){
         if (remove(path.c_str()) == 0)
         {
             return true;
@@ -63,14 +62,14 @@ namespace FileManager{
         return false;
     }
 
-    std::vector<file_description> list_files(std::string path){//retorna um vetor vazio caso path não seja diretório
+    std::vector<file_description> list_files(std::string path){
         std::vector<file_description> files_list;
 
         if (std::filesystem::is_directory(path))
         {
             for (const auto& entry : std::filesystem::directory_iterator(path))
             {
-                if(std::filesystem::is_regular_file(entry)){//só retorna informações de arquivos que não sejam diretórios
+                if(std::filesystem::is_regular_file(entry)){
                     struct stat result;
                     std::string filename = entry.path().string();
                     if (stat(filename.c_str(), &result)==0)

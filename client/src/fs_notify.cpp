@@ -47,11 +47,11 @@ namespace FSNotify {
             {
                 bytesRead = read(Fd, buffer, sizeof(buffer));
                 if (bytesRead == -1) {
-                    std::cerr << "read error\n";
+                    std::cerr << "inotify buffer read error\n";
                     close(Fd);
                     exit(EXIT_FAILURE);
                 }
-                sem_wait(&enable_notify);  //espera o fim do write para enviar notificações
+                sem_wait(&enable_notify);  //espera o fim de file_write para enviar notificações
                 for (char *p = buffer; p < buffer + bytesRead;) {
                     struct inotify_event *event = reinterpret_cast<struct inotify_event *>(p);
 
@@ -61,20 +61,18 @@ namespace FSNotify {
                             std::cerr << "failed to notify modification\n";
                         }
                     }
-
                     if ((event->mask & IN_CREATE) | (event->mask & IN_MOVED_TO)) {
                         if(!created(event)){
                             std::cerr << "failed to notify creation\n";
                         }
                     }
-
                     if ((event->mask & IN_DELETE) | (event->mask & IN_MOVED_FROM)) {
                         if(!deleted(event)){
                             std::cerr << "failed to notify deletion\n";
                         }
                     }
 
-                    p += sizeof(struct inotify_event) + event->len;
+                    p += sizeof(inotify_event) + event->len; 
                 }
                 sem_post(&enable_notify);
             }

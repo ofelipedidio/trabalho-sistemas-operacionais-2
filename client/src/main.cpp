@@ -43,11 +43,9 @@ int main(int argc, char **argv) {
     if (!Network::init(ip, port)) {
         return EXIT_FAILURE;
     }
-
+  
     system(("rm -rf sync_dir_" + username).c_str());
     system(("mkdir -p sync_dir_" + username).c_str());
-
-    sleep(5);
 
     int task_id = Network::list_files(username);
     Network::network_task_t task;
