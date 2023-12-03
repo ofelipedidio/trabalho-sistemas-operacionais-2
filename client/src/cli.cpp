@@ -10,7 +10,6 @@
 #include "../include/network.h"
 #include "../include/file_manager.h"
 
-
 namespace Cli{
 
     std::string path;
@@ -45,19 +44,28 @@ namespace Cli{
             }},
             {"exit", [&username](const std::string&) {
                 cli_exit(username);
+            }},
+            {"clear", [](const std::string&) {
+                system("clear");
             }}
+
         };
 
         std::string user_input;
+        std::string line;
+
         while (true) {
-            std::cout<<"> ";
-            bool aux = (bool)(std::cin >> user_input);
+            std::cout<< "\033[92;1m" << username << "\033[0m> ";
+            std::getline(std::cin, line);
+            if(line.size() == 0)continue;
+            std::istringstream iss(line);
+            bool aux = (bool)(iss >> user_input);
             if(!aux)break;
             auto it = command_map.find(user_input);
             if (it != command_map.end()) {
                 it->second(username);
             } else {
-                std::cout << "Invalid\n";
+                std::cout << user_input << ": command not found" << std::endl;
             }
         }
     }
@@ -87,15 +95,20 @@ namespace Cli{
     }
 
     void list_server_files(const std::string& username) {
-        std::vector<netfs::file_description_t> server_files = App::list_server();
+        std::vector<FileManager::file_description> server_files = App::list_server();
+        if(server_files.empty()){
+            std::cout<<"empty folder"<<std::endl;
+            return;
+        }
         tabulate::Table files = create_file_table(server_files);
         std::cout << files << std::endl;
     }
 
     void list_client_files(const std::string& username) {
-        std::vector<netfs::file_description_t> client_files;
-        if (!netfs::list_files(path, &client_files)) {
-            // TODO - Didio: Handle case when the files cannot be listed
+        std::vector<FileManager::file_description> client_files = FileManager::list_files(path);
+        if(client_files.empty()){
+            std::cout<<"empty folder"<<std::endl;
+            return;
         }
         tabulate::Table files = create_file_table(client_files);
         std::cout << files << std::endl;
@@ -103,12 +116,13 @@ namespace Cli{
 
     void cli_exit(const std::string& username) {
         Network::client_exit(username);
-        std::cout<<"exit with sucess"<<std::endl;
+        std::cout<<"exit with success"<<std::endl;
         exit(0);
     }
 
     tabulate::Table create_file_table(std::vector<netfs::file_description_t> files){
         tabulate::Table file_table;
+        file_table.format().width(20);
         file_table.add_row({"filename", "mtime", "atime", "ctime"});
 
         for(auto [filename, mtime, atime, ctime]:files) {
@@ -121,6 +135,7 @@ namespace Cli{
             .font_align(tabulate::FontAlign::center)
             .font_style({tabulate::FontStyle::bold});
         }
+
         return file_table;
     }
 

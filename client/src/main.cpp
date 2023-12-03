@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
     if (!Network::init(ip, port)) {
         return EXIT_FAILURE;
     }
-    
+  
     std::cerr << "[Initialization] Starting FSNotify" << std::endl;
     FSNotify::init(username);
 
