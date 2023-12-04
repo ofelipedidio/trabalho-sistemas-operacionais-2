@@ -47,192 +47,147 @@ namespace Network {
             netfs::file_metadata_t metadata;
             file_event_t file_event;
 
-            while (true) {
-                running = true;
-
-                while (running) {
-                    std::optional<network_task_t> _task = task_queue.try_pop();
-                    if (_task.has_value()) {
-                        task = _task.value();
-                        switch (task.type) {
-                            case TASK_LIST_FILES:
-                                std::cerr << "[Network thread] Handling a list_files task" << std::endl;
-                                if (request_list_files(connection, &status, &task.files)) {
-                                    std::cerr << "[Network thread] Succeded on the list_files task" << std::endl;
-                                    task.success = true;
-                                    done_queue.push(task.task_id, task);
-                                } else {
-                                    std::cerr << "[Network thread] Failed on the list_files task" << std::endl;
-                                    running = false;
-                                    task.success = false;
-                                    done_queue.push(task.task_id, task);
-                                }
-                                break;
-                            case TASK_UPLOAD:
-                                std::cerr << "[Network thread] Handling a upload task" << std::endl;
-                                if (netfs::read_file(task.path, &metadata)) {
-                                    if (request_upload(connection, task.filename, metadata.contents, metadata.length, &status)) {
-                                        if (status == STATUS_SUCCESS) {
-                                            std::cerr << "[Network thread] Succeded on the upload task" << std::endl;
-                                            task.success = true;
-                                            done_queue.push(task.task_id, task);
-                                        } else if (status == STATUS_FILE_NOT_FOUND) {
-                                            std::cerr << "[Network thread] Server doesn't have file `" << task.filename << "`" << std::endl;
-                                            task.success = false;
-                                            done_queue.push(task.task_id, task);
-                                        } else {
-                                            std::cerr << "ERROR: [Network] Server was unable to receive file `" << task.filename << "`" << std::endl;
-                                            task.success = false;
-                                            done_queue.push(task.task_id, task);
-                                        }
+            running = true;
+            while (running) {
+                std::optional<network_task_t> _task = task_queue.try_pop();
+                if (_task.has_value()) {
+                    task = _task.value();
+                    switch (task.type) {
+                        case TASK_LIST_FILES:
+                            std::cerr << "[Network thread] Handling a list_files task" << std::endl;
+                            if (request_list_files(connection, &status, &task.files)) {
+                                std::cerr << "[Network thread] Succeded on the list_files task" << std::endl;
+                                task.success = true;
+                                done_queue.push(task.task_id, task);
+                            } else {
+                                std::cerr << "[Network thread] Failed on the list_files task" << std::endl;
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                            }
+                            break;
+                        case TASK_UPLOAD:
+                            std::cerr << "[Network thread] Handling a upload task" << std::endl;
+                            if (netfs::read_file(task.path, &metadata)) {
+                                if (request_upload(connection, task.filename, metadata.contents, metadata.length, &status)) {
+                                    if (status == STATUS_SUCCESS) {
+                                        std::cerr << "[Network thread] Succeded on the upload task" << std::endl;
+                                        task.success = true;
+                                        done_queue.push(task.task_id, task);
+                                    } else if (status == STATUS_FILE_NOT_FOUND) {
+                                        std::cerr << "[Network thread] Server doesn't have file `" << task.filename << "`" << std::endl;
+                                        task.success = false;
+                                        done_queue.push(task.task_id, task);
                                     } else {
-                                        std::cerr << "[Network thread] Failed on the upload task" << std::endl;
-                                        running = false;
+                                        std::cerr << "ERROR: [Network] Server was unable to receive file `" << task.filename << "`" << std::endl;
                                         task.success = false;
                                         done_queue.push(task.task_id, task);
                                     }
                                 } else {
-                                    std::cerr << "ERROR: [NetFS] Could not read file `" << task.path << "`" << std::endl;
+                                    std::cerr << "[Network thread] Failed on the upload task" << std::endl;
                                     running = false;
                                     task.success = false;
                                     done_queue.push(task.task_id, task);
                                 }
-                                break;
-                            case TASK_DOWNLOAD:
-                                std::cerr << "[Network thread] Handling a download task" << std::endl;
+                            } else {
+                                std::cerr << "ERROR: [NetFS] Could not read file `" << task.path << "`" << std::endl;
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                            }
+                            break;
+                        case TASK_DOWNLOAD:
+                            std::cerr << "[Network thread] Handling a download task" << std::endl;
 
-                                if (request_download(connection, task.filename, &status, &buf, &length)) {
-                                    if (status == STATUS_SUCCESS) {
-                                        if (netfs::write_file(task.path, buf, length)) {
-                                            std::cerr << "[Network thread] Succeded on the download task" << std::endl;
-                                            task.success = true;
-                                            done_queue.push(task.task_id, task);
-                                        } else {
-                                            std::cerr << "ERROR: [NetFS] Could not write file `" << task.path << "`" << std::endl;
-                                            task.success = false;
-                                            done_queue.push(task.task_id, task);
-                                        }
-                                    } else {
-                                        std::cerr << "ERROR: [Network] Server was unable to send file `" << task.filename << "`" << std::endl;
-                                        task.success = false;
-                                        done_queue.push(task.task_id, task);
-                                    }
-                                } else {
-                                    std::cerr << "[Network thread] Failed on the download task" << std::endl;
-                                    running = false;
-                                    task.success = false;
-                                    done_queue.push(task.task_id, task);
-                                }
-                                break;
-                            case TASK_DELETE:
-                                std::cerr << "[Network thread] Handling a delete task" << std::endl;
-                                if (request_delete(connection, task.filename, &status)) {
-                                    if (status == STATUS_SUCCESS) {
-                                        std::cerr << "[Network thread] Succeded on the delete task" << std::endl;
+                            if (request_download(connection, task.filename, &status, &buf, &length)) {
+                                if (status == STATUS_SUCCESS) {
+                                    if (netfs::write_file(task.path, buf, length)) {
+                                        std::cerr << "[Network thread] Succeded on the download task" << std::endl;
                                         task.success = true;
                                         done_queue.push(task.task_id, task);
                                     } else {
-                                        std::cerr << "ERROR: [Network] Server was unable to delete file `" << task.filename << "`" << std::endl;
+                                        std::cerr << "ERROR: [NetFS] Could not write file `" << task.path << "`" << std::endl;
                                         task.success = false;
                                         done_queue.push(task.task_id, task);
                                     }
                                 } else {
-                                    std::cerr << "[Network thread] Failed on the delete task" << std::endl;
-                                    running = false;
+                                    std::cerr << "ERROR: [Network] Server was unable to send file `" << task.filename << "`" << std::endl;
                                     task.success = false;
                                     done_queue.push(task.task_id, task);
                                 }
-                                break;
-                            case TASK_EXIT:
-                                std::cerr << "[Network thread] Handling a exit task" << std::endl;
-                                if (request_exit(connection)) {
-                                    std::cerr << "[Network thread] Succeded on the exit task" << std::endl;
+                            } else {
+                                std::cerr << "[Network thread] Failed on the download task" << std::endl;
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                            }
+                            break;
+                        case TASK_DELETE:
+                            std::cerr << "[Network thread] Handling a delete task" << std::endl;
+                            if (request_delete(connection, task.filename, &status)) {
+                                if (status == STATUS_SUCCESS) {
+                                    std::cerr << "[Network thread] Succeded on the delete task" << std::endl;
                                     task.success = true;
                                     done_queue.push(task.task_id, task);
                                 } else {
-                                    std::cerr << "[Network thread] Failed on the exit task" << std::endl;
-                                    running = false;
+                                    std::cerr << "ERROR: [Network] Server was unable to delete file `" << task.filename << "`" << std::endl;
                                     task.success = false;
                                     done_queue.push(task.task_id, task);
                                 }
-                                break;
-                            default:
+                            } else {
+                                std::cerr << "[Network thread] Failed on the delete task" << std::endl;
                                 running = false;
-                                break;
-                        }
-                    }
-
-                    if (request_update(connection, &status, &file_event)) {
-                        if (status == STATUS_SUCCESS) {
-                            switch (file_event.type) {
-                                case event_file_modified:
-                                    std::cerr << "[net] [update] modified `" << file_event.filename << "`" << std::endl;
-                                    if (request_download(connection, file_event.filename, &status, &buf, &length)) {
-                                        std::cerr << "[net] [update] modified `" << file_event.filename << "` (s)" << std::endl;
-                                        App::network_modified(file_event.filename, buf, length);
-                                    } else {
-                                        std::cerr << "[net] [update] modified `" << file_event.filename << "` (f)" << std::endl;
-                                    }
-                                    break;
-                                case event_file_deleted:
-                                    std::cerr << "[net] [update] deleted `" << file_event.filename << "`" << std::endl;
-                                    App::network_deleted(file_event.filename);
-                                    break;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
                             }
-                        }
-                    } else {
-                        running = false;
-                    }
-
-                    if (!_task.has_value()) {
-                        sleep(1);
+                            break;
+                        case TASK_EXIT:
+                            std::cerr << "[Network thread] Handling a exit task" << std::endl;
+                            if (request_exit(connection)) {
+                                std::cerr << "[Network thread] Succeded on the exit task" << std::endl;
+                                task.success = true;
+                                done_queue.push(task.task_id, task);
+                            } else {
+                                std::cerr << "[Network thread] Failed on the exit task" << std::endl;
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                            }
+                            break;
+                        default:
+                            running = false;
+                            break;
                     }
                 }
 
-                std::cerr << "[Network] closed connection" << std::endl;
-
-                /*
-                 * Create socket and connect to server
-                 */
-                {
-                    std::cerr << "[Network] Starting socket" << std::endl;
-                    struct sockaddr_in server_addr;
-                    server_addr.sin_family = AF_INET;
-                    server_addr.sin_port = htons(port);
-                    inet_aton(ip.c_str(), &server_addr.sin_addr);
-                    bzero(&server_addr.sin_zero, 8);
-
-                    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-                    if (sockfd == -1) {
-                        std::cerr << "ERROR: [Network reset] Could not create the socket" << std::endl;
-                        break;
+                if (request_update(connection, &status, &file_event)) {
+                    if (status == STATUS_SUCCESS) {
+                        switch (file_event.type) {
+                            case event_file_modified:
+                                std::cerr << "[net] [update] modified `" << file_event.filename << "`" << std::endl;
+                                if (request_download(connection, file_event.filename, &status, &buf, &length)) {
+                                    std::cerr << "[net] [update] modified `" << file_event.filename << "` (s)" << std::endl;
+                                    App::network_modified(file_event.filename, buf, length);
+                                } else {
+                                    std::cerr << "[net] [update] modified `" << file_event.filename << "` (f)" << std::endl;
+                                }
+                                break;
+                            case event_file_deleted:
+                                std::cerr << "[net] [update] deleted `" << file_event.filename << "`" << std::endl;
+                                App::network_deleted(file_event.filename);
+                                break;
+                        }
                     }
+                } else {
+                    running = false;
+                }
 
-                    std::cerr << "[Network] Connecting to the server" << std::endl;
-                    int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-                    if (connect_response < 0) {
-                        std::cerr << "ERROR: [Network reset] Could not connect to the server" << std::endl;
-                        break;
-                    }
-
-                    connection = conn_new(
-                            server_addr.sin_addr,
-                            ntohs(server_addr.sin_port),
-                            sockfd);
-
-                    std::cerr << "[Network] Performing handshake" << std::endl;
-                    uint8_t status;
-                    if (!request_handshake(connection, App::get_username(), &status)) {
-                        std::cerr << "ERROR: [Network reset] Failed to handshake" << std::endl;
-                        break;
-                    }
-
-                    if (status != STATUS_SUCCESS) {
-                        std::cerr << "ERROR: [Network reset] Too many connections to the server with the same username" << std::endl;
-                        break;
-                    }
+                if (!_task.has_value()) {
+                    sleep(1);
                 }
             }
+
+            std::cerr << "[Network] closed connection" << std::endl;
 
             // TODO - Didio: unwind
             pthread_exit(nullptr);

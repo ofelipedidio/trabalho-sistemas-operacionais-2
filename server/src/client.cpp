@@ -77,13 +77,16 @@ client_t *client_new(std::string username, connection_t *connection) {
         return nullptr;
     }
 
+    client_t temp_c;
+
     // Allocate memory for the client
-    client_t *client = (client_t*) malloc(sizeof(client_t));
+    client_t *client = new client_t();
     if (client == NULL) {
         std::cout << "ERROR: [client_new with username = `" << username << "`] Could not allocate memory for the client" << std::endl;
         sem_post(&global_mutex);
         return nullptr;
     }
+    *client = temp_c;
 
     // Initialize the client's variables
     client->username = username;
@@ -99,25 +102,20 @@ client_t *client_new(std::string username, connection_t *connection) {
     return client;
 }
 
+void print_client(client_t *client) {
+    std::cerr << "client(username=" << client->username << ", active=" << client->active << ", id=" << client->connection->connection_id << ")" << std::endl;
+}
+
 void client_remove(client_t *client) {
     sem_wait(&global_mutex);
     client->active = false;
-
-    int client_index = -1;
     for (std::size_t i = 0; i < clients.size(); i++) {
         if (clients[i]->connection->connection_id == client->connection->connection_id) {
-            client_index = i;
+            clients.erase(std::next(clients.begin(), i));
+            client_free(client);
             break;
         }
     }
-
-    if (client_index < 0) {
-        return;
-    }
-
-    clients.erase(std::next(clients.begin(), client_index));
-    client_free(client);
-
     sem_post(&global_mutex);
 }
 

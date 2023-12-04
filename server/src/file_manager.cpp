@@ -116,17 +116,19 @@ namespace netfs {
 
         for (const auto& entry : std::filesystem::directory_iterator(path)) {
             if (std::filesystem::is_regular_file(entry)) {
-                struct stat result;
+                struct stat _stat;
                 std::string filename = entry.path().string();
-                if (stat(filename.c_str(), &result) == 0) {
-                    auto mod_time = result.st_mtime;
-                    uint64_t modified_time = mod_time;
+                if (stat(filename.c_str(), &_stat) == 0) {
 
                     std::string::size_type i = filename.find(path);
                     if (i != std::string::npos) {
                         filename.erase(i, path.length()+1);
                     }
-                    files_list.push_back({filename, modified_time});
+                    files_list.push_back({ filename,
+                            (uint64_t) _stat.st_mtim.tv_sec,
+                            (uint64_t) _stat.st_atim.tv_sec,
+                            (uint64_t) _stat.st_ctim.tv_sec
+                            });
                 } else {
                     std::cout << "ERROR [listing files `" << path << "`] Could not stat file `" << filename << "`" << std::endl;
                     return false;
@@ -138,4 +140,3 @@ namespace netfs {
         return true;
     }
 }
-
