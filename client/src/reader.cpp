@@ -1,5 +1,6 @@
 #include "../include/reader.h"
 
+#include <asm-generic/errno-base.h>
 #include <cerrno>
 #include <cinttypes>
 #include <cstdint>
@@ -12,7 +13,7 @@
 #define rnet_debug false
 
 void print_reader(struct tcp_reader& reader) {
-    std::cerr << "Reader(sockfd=" << reader.sockfd << ", index=" << reader.index << ", length=" << reader.length << ")" << std::endl;
+    // std::cerr << "Reader(sockfd=" << reader.sockfd << ", index=" << reader.index << ", length=" << reader.length << ")" << std::endl;
 }
 
 struct tcp_reader init_reader(int sockfd) {
@@ -33,12 +34,15 @@ uint8_t *curr_buf(struct tcp_reader& reader) {
 }
 
 bool fill_buffer(struct tcp_reader& reader) {
-    if (reader.index >= reader.length) {
+    while (reader.index >= reader.length) {
         reader.buffer_switch = !reader.buffer_switch;
         uint8_t *buffer = curr_buf(reader);
 
         int read_size = read(reader.sockfd, buffer, RSIZE);
         if (read_size <= 0) {
+            if (errno == EAGAIN) {
+                continue;
+            }
             std::cerr << "ERROR: [Reader.fill_buffer] read failed with errno = `" << errno << "`" << std::endl; 
             return false;
         }

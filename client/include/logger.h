@@ -5,7 +5,7 @@
 #include <mutex>
 
 // Set log level
-#define LOG_DEBUG
+// #define LOG_DEBUG
 #define LOG_ERROR
 
 inline std::mutex _log_mutex;

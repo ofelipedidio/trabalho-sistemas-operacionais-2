@@ -50,6 +50,7 @@ inline client_t *connect_to_client(connection_t *connection) {
     }
 
     std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection accepted" << std::endl;
+    system(("mkdir -p sync_dir_" + username).c_str());
     respond_handshake_success(connection);
     return client;
 }
@@ -97,8 +98,9 @@ void *client_handler_thread(void *_arg) {
                     free(file_metadata.contents);
                 } else {
                     std::cerr << "[" << client->connection->connection_id << "] Failed a download request" << std::endl;
-                    respond_download_fail(client->connection);
-                    running = false;
+                    if (!respond_download_fail(client->connection)) {
+                        running = false;
+                    }
                 }
                 break;
             case PACKET_TYPE_UPLOAD:
@@ -114,7 +116,6 @@ void *client_handler_thread(void *_arg) {
                     if (!respond_upload_fail(client->connection)) {
                         running = false;
                     }
-                    running = false;
                 }
                 free(bytes);
                 break;
@@ -131,7 +132,6 @@ void *client_handler_thread(void *_arg) {
                     if (!respond_delete_fail(client->connection)) {
                         running = false;
                     }
-                    running = false;
                 }
                 break;
             case PACKET_TYPE_LIST_FILES:
