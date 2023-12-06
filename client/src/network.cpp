@@ -1,3 +1,4 @@
+#include <asm-generic/errno-base.h>
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
