@@ -26,6 +26,7 @@
 #include "../include/protocol.h"
 #include "../include/app.h"
 #include "../include/debug.h"
+#include "../include/logger.h"
 
 namespace Network {
     pthread_t network_thread;
@@ -58,106 +59,131 @@ namespace Network {
                     task = _task.value();
                     switch (task.type) {
                         case TASK_LIST_FILES:
-                            DEBUG(std::cerr << "[Network thread] Handling a list_files task" << std::endl;)
-                            if (request_list_files(connection, &status, &task.files)) {
-                                DEBUG(std::cerr << "[Network thread] Succeded on the list_files task" << std::endl;)
-                                task.success = true;
-                                done_queue.push(task.task_id, task);
-                            } else {
-                                DEBUG(std::cerr << "[Network thread] Failed on the list_files task" << std::endl;)
+                            log_debug("[Network thread] Handling a list_files task");
+                            
+                            if (!request_list_files(connection, &status, &task.files)) {
+                                log_debug("[Network thread] Failed on the list_files task");
                                 running = false;
                                 task.success = false;
                                 done_queue.push(task.task_id, task);
+                                break;
                             }
-                            break;
-                        case TASK_UPLOAD:
-                            DEBUG(std::cerr << "[Network thread] Handling a upload task" << std::endl;)
-                            if (netfs::read_file(task.path, &metadata)) {
-                                if (request_upload(connection, task.filename, metadata.contents, metadata.length, &status)) {
-                                    if (status == STATUS_SUCCESS) {
-                                        DEBUG(std::cerr << "[Network thread] Succeded on the upload task" << std::endl;)
-                                        task.success = true;
-                                        done_queue.push(task.task_id, task);
-                                    } else if (status == STATUS_FILE_NOT_FOUND) {
-                                        DEBUG(std::cerr << "[Network thread] Server doesn't have file `" << task.filename << "`" << std::endl;)
-                                        task.success = false;
-                                        done_queue.push(task.task_id, task);
-                                    } else {
-                                        DEBUG(std::cerr << "ERROR: [Network] Server was unable to receive file `" << task.filename << "`" << std::endl;)
-                                        task.success = false;
-                                        done_queue.push(task.task_id, task);
-                                    }
-                                } else {
-                                    DEBUG(std::cerr << "[Network thread] Failed on the upload task" << std::endl;)
-                                    running = false;
-                                    task.success = false;
-                                    done_queue.push(task.task_id, task);
-                                }
-                            } else {
-                                DEBUG(std::cerr << "ERROR: [NetFS] Could not read file `" << task.path << "`" << std::endl;)
-                                running = false;
+                            
+                            if (status != STATUS_SUCCESS) {
+                                log_debug("ERROR: [Network] Server was unable to list files");
                                 task.success = false;
                                 done_queue.push(task.task_id, task);
+                                break;
                             }
+                            
+                            log_debug("[Network thread] Succeded on the list_files task");
+                            task.success = true;
+                            
+                            done_queue.push(task.task_id, task);
                             break;
-                        case TASK_DOWNLOAD:
-                            DEBUG(std::cerr << "[Network thread] Handling a download task" << std::endl;)
 
-                            if (request_download(connection, task.filename, &status, &buf, &length)) {
-                                if (status == STATUS_SUCCESS) {
-                                    if (netfs::write_file(task.path, buf, length)) {
-                                        DEBUG(std::cerr << "[Network thread] Succeded on the download task" << std::endl;)
-                                        task.success = true;
-                                        done_queue.push(task.task_id, task);
-                                    } else {
-                                        DEBUG(std::cerr << "ERROR: [NetFS] Could not write file `" << task.path << "`" << std::endl;)
-                                        task.success = false;
-                                        done_queue.push(task.task_id, task);
-                                    }
-                                } else {
-                                    DEBUG(std::cerr << "ERROR: [Network] Server was unable to send file `" << task.filename << "`" << std::endl;)
-                                    task.success = false;
-                                    done_queue.push(task.task_id, task);
-                                }
-                            } else {
-                                DEBUG(std::cerr << "[Network thread] Failed on the download task" << std::endl;)
+                        case TASK_UPLOAD:
+                            log_debug("Handling a upload task");
+                            
+                            if (!netfs::read_file(task.path, &metadata)) {
+                                log_debug("ERROR: [NetFS] Could not read file `" << task.path << "`");
                                 running = false;
                                 task.success = false;
                                 done_queue.push(task.task_id, task);
+                                break;
                             }
-                            break;
-                        case TASK_DELETE:
-                            DEBUG(std::cerr << "[Network thread] Handling a delete task" << std::endl;)
-                            if (request_delete(connection, task.filename, &status)) {
-                                if (status == STATUS_SUCCESS) {
-                                    DEBUG(std::cerr << "[Network thread] Succeded on the delete task" << std::endl;)
-                                    task.success = true;
-                                    done_queue.push(task.task_id, task);
-                                } else {
-                                    DEBUG(std::cerr << "ERROR: [Network] Server was unable to delete file `" << task.filename << "`" << std::endl;)
-                                    task.success = false;
-                                    done_queue.push(task.task_id, task);
-                                }
-                            } else {
-                                DEBUG(std::cerr << "[Network thread] Failed on the delete task" << std::endl;)
+                            
+                            if (!request_upload(connection, task.filename, metadata.contents, metadata.length, &status)) {
+                                log_debug("Failed on the upload task");
                                 running = false;
                                 task.success = false;
                                 done_queue.push(task.task_id, task);
+                                break;
                             }
-                            break;
-                        case TASK_EXIT:
-                            DEBUG(std::cerr << "[Network thread] Handling a exit task" << std::endl;)
-                            if (request_exit(connection)) {
-                                DEBUG(std::cerr << "[Network thread] Succeded on the exit task" << std::endl;)
+                            
+                            if (status == STATUS_SUCCESS) {
+                                log_debug("Succeded on the upload task");
                                 task.success = true;
-                                done_queue.push(task.task_id, task);
+                            } else if (status == STATUS_FILE_NOT_FOUND) {
+                                log_debug("Server does not have file `" << task.filename << "`");
+                                task.success = false;
                             } else {
-                                DEBUG(std::cerr << "[Network thread] Failed on the exit task" << std::endl;)
+                                log_error("Server was unable to receive file `" << task.filename << "`");
+                                task.success = false;
+                            }
+                            
+                            free(metadata.contents);
+                            done_queue.push(task.task_id, task);
+                            break;
+
+                        case TASK_DOWNLOAD:
+                            log_debug("[Network thread] Handling a download task");
+
+                            if (!request_download(connection, task.filename, &status, &buf, &length)) {
+                                log_debug("Failed on the download task");
                                 running = false;
                                 task.success = false;
                                 done_queue.push(task.task_id, task);
+                                break;
                             }
+
+                            if (status != STATUS_SUCCESS) {
+                                log_debug("Server was unable to send file `" << task.filename << "`");
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                                break;
+                            }
+
+                            if (!netfs::write_file(task.path, buf, length)) {
+                                log_debug("Could not write file `" << task.path << "`");
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                                break;
+                            }
+
+                            log_debug("Succeded on the download task");
+                            task.success = true;
+                            done_queue.push(task.task_id, task);
                             break;
+
+                        case TASK_DELETE:
+                            log_debug("Handling a delete task");
+
+                            if (!request_delete(connection, task.filename, &status)) {
+                                log_debug("Failed on the delete task");
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                                break;
+                            }
+
+                            if (status != STATUS_SUCCESS) {
+                                log_error("Server was unable to delete file `" << task.filename << "`");
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                                break;
+                            }
+
+                            log_debug("Succeded on the delete task");
+                            task.success = true;
+                            done_queue.push(task.task_id, task);
+                            break;
+
+                        case TASK_EXIT:
+                            log_debug("Handling a exit task");
+                            if (!request_exit(connection)) {
+                                log_debug("Failed on the exit task");
+                                running = false;
+                                task.success = false;
+                                done_queue.push(task.task_id, task);
+                                break;
+                            }
+
+                            log_debug("Succeded on the exit task");
+                            task.success = true;
+                            done_queue.push(task.task_id, task);
+                            break;
+
                         default:
                             running = false;
                             break;
@@ -168,16 +194,16 @@ namespace Network {
                     if (status == STATUS_SUCCESS) {
                         switch (file_event.type) {
                             case event_file_modified:
-                                DEBUG(std::cerr << "[net] [update] modified `" << file_event.filename << "`" << std::endl;)
+                                log_debug("[net] [update] modified `" << file_event.filename << "`");
                                 if (request_download(connection, file_event.filename, &status, &buf, &length)) {
-                                    DEBUG(std::cerr << "[net] [update] modified `" << file_event.filename << "` (s)" << std::endl;)
+                                    log_debug("[net] [update] modified `" << file_event.filename << "` (s)");
                                     App::network_modified(file_event.filename, buf, length);
                                 } else {
-                                    DEBUG(std::cerr << "[net] [update] modified `" << file_event.filename << "` (f)" << std::endl;)
+                                    log_debug("[net] [update] modified `" << file_event.filename << "` (f)");
                                 }
                                 break;
                             case event_file_deleted:
-                                DEBUG(std::cerr << "[net] [update] deleted `" << file_event.filename << "`" << std::endl;)
+                                log_debug("[net] [update] deleted `" << file_event.filename << "`");
                                 App::network_deleted(file_event.filename);
                                 break;
                         }
@@ -186,8 +212,9 @@ namespace Network {
                     running = false;
                 }
 
-                if (!_task.has_value()) {
-                    sleep(1);
+                while (!_task.has_value()) {
+                    // Sleep for 200ms
+                    usleep(200 * 1000);
                 }
             }
 

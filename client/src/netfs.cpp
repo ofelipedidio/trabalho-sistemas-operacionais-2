@@ -72,6 +72,7 @@ namespace netfs {
                     length - read_amount,
                     file);
             if (read_size < 0) {
+                free(bytes);
                 std::cerr << "ERROR: [reading file `" << path << "`] fread with errno = `" << errno << "`" << std::endl;
                 fclose(file);
                 return false;
@@ -82,6 +83,7 @@ namespace netfs {
         // Get last modified time of the file
         struct stat _stat;
         if (stat(path.c_str(), &_stat) != 0) {
+            free(bytes);
             std::cerr << "ERROR: [reading file `" << path << "`] stat failed with errno = `" << errno << "`" << std::endl;
             return false;
         }
