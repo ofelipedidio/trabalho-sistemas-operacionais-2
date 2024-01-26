@@ -7,4 +7,5 @@ void close_all_connections();
 
 void sigint_handler(int param);
 
+void sigpipe_handler(int signal_number);
 #endif // !CLOSEABLE
