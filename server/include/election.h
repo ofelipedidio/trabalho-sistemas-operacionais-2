@@ -18,16 +18,20 @@ typedef struct {
     std::vector<server_t> servers;
 } metadata_t;
 
-metadata_t GetMetadata();
+metadata_t GetMetadata(); //TODO
 
-void initiateElection();
+void initiateElection(); //TODO
 
-void receiveElectionMessage(metadata_t& metadata, const server_t& senderServer);
+void setElected(metadata_t& metadata, server_t& electedServer);
 
-void receiveElectedMessage(metadata_t& metadata, const server_t& electedServer);
+void updateElected(server_t& currentServer, server_t& electedServer); //TODO
+
+void receiveElectionMessage(metadata_t& metadata, server_t& currentServer, server_t& senderServer);
+
+void receiveElectedMessage(metadata_t& metadata, server_t& currentServer, server_t& electedServer);
 
 server_t getNextServer(const metadata_t& metadata, const server_t& currentServer);
 
-void sendElectionMessage(const server_t& targetServer, const server_t& winningServer);
+void sendElectionMessage(server_t& targetServer, server_t& winningServer); //TODO
 
-void sendElectedMessage(const server_t& targetServer, const server_t& electedServer);
+void sendElectedMessage(server_t& targetServer, server_t& electedServer); //TODO
