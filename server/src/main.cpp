@@ -10,6 +10,7 @@ int main(int argc, char** argv) {
     client_init();
 
     signal(SIGINT, sigint_handler);
+    signal(SIGPIPE, sigpipe_handler);
     uint16_t port = 4000;
     if (argc >= 2) {
         std::string s(argv[1]);
