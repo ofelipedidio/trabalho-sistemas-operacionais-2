@@ -18,7 +18,9 @@ typedef struct {
     std::vector<server_t> servers;
 } metadata_t;
 
-void initiateElection(metadata_t& metadata);
+metadata_t GetMetadata();
+
+void initiateElection();
 
 void receiveElectionMessage(metadata_t& metadata, const server_t& senderServer);
 

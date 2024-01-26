@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "../include/closeable.h"
+#include "../include/election.h"
 
 std::vector<int> socket_fds;
 
@@ -27,4 +28,7 @@ void sigint_handler(int param) {
 void sigpipe_handler(int signal_number) {
     std::cerr << "\n[SIGPIPE_HANDLER]Caught SIGPIPE signal (" << signal_number << ")." << std::endl;
     std::cout << "INICIA A ELEIÇÃO PFV \n";
+      
+    //closeSocket();
+    initiateElection();
 }
