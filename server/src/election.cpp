@@ -261,15 +261,22 @@ void setElected() {
     metadata_t *metadata = acquire_metadata();
     // INTERNAL: Metadata critical section
     {
-        for (int i = metadata->servers.size()-1; i >=0; ){
-            if (metadata->servers[i].server_type == primary){
-                std::swap(metadata->servers[i], metadata->servers[metadata->servers.size()-1]);
-                metadata->servers.pop_back();
-                i--;
+        metadata_t new_metadata;
+        for(auto server : metadata->servers) {
+            if (server.server_type != primary) {
+                new_metadata.servers.push_back(server);
             }
-            i--;
         }
+        // for (int i = metadata->servers.size()-1; i >=0; ){
+        //     if (metadata->servers[i].server_type == primary){
+        //         std::swap(metadata->servers[i], metadata->servers[metadata->servers.size()-1]);
+        //         metadata->servers.pop_back();
+        //         i--;
+        //     }
+        //     i--;
+        // }
         // Update the current server to primary
+        *metadata = new_metadata;
         server_t *current_server = get_current_server();
         current_server->server_type = primary;
         for (int i = 0; i < metadata->servers.size(); i++) {
