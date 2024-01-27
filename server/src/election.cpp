@@ -89,16 +89,8 @@ server_t getNextServer(const server_t currentServer) {
         }
 
         // Iterate over the servers to find the next non-primary server
-        for (std::size_t i = 1; i <= metadata->servers.size(); i++) {
-            server_t other = metadata->servers[(self+i) % metadata->servers.size()];
-            std::cerr << "[DEBUG] [Election] [2] Iterated through ";
-            printServer(std::cerr, other);
-            std::cerr << std::endl;
-            if (other.server_type != primary) {
-                next_server = other;
-                break;
-            }
-        }
+        next_server = metadata->servers[(self+1) % metadata->servers.size()];
+        std::cerr << "[DEBUG] [Election] [2] Iterated through " << next_server << std::endl;
     }
     release_metadata();
 
@@ -250,37 +242,13 @@ void sendElectedMessage(server_t nextServer, server_t electedServer) {
  * Updates state to acknoleadge that the current server is the primary
  */
 void setElected() {
-    // Ignore concurrent election results
-    server_t *current_server = get_current_server();
-    if (current_server->server_type == primary) {
-        return;
-    }
-
-    // Remove the primary server from the ring
-    // INTERNAL: this changes the ring order!
     metadata_t *metadata = acquire_metadata();
-    // INTERNAL: Metadata critical section
+    // Critical section
     {
-        metadata_t new_metadata;
-        for(auto server : metadata->servers) {
-            if (server.server_type != primary) {
-                new_metadata.servers.push_back(server);
-            }
-        }
-        // for (int i = metadata->servers.size()-1; i >=0; ){
-        //     if (metadata->servers[i].server_type == primary){
-        //         std::swap(metadata->servers[i], metadata->servers[metadata->servers.size()-1]);
-        //         metadata->servers.pop_back();
-        //         i--;
-        //     }
-        //     i--;
-        // }
-        // Update the current server to primary
-        *metadata = new_metadata;
         server_t *current_server = get_current_server();
         current_server->server_type = primary;
         for (int i = 0; i < metadata->servers.size(); i++) {
-            if (metadata->servers[i].ip == current_server->ip && metadata->servers[i].port == current_server->port) {
+            if (server_eq(current_server, &metadata->servers[i])) {
                 metadata->servers[i].server_type = primary;
                 break;
             }
@@ -378,9 +346,20 @@ bool updateElected(server_t electedServer) {
  * Inbound election message handler
  */
 void handle_async_election_message(server_t winningServer) {
-    std::cerr << "[DEBUG] [Election] [7] (election) Receive message with server (";
-    printServer(std::cerr, winningServer);
-    std::cerr << ")" << std::endl;
+    metadata_t *metadata = acquire_metadata();
+    {
+        metadata_t new_metadata;
+        for(auto server : metadata->servers) {
+            if (server.server_type != primary) {
+                new_metadata.servers.push_back(server);
+            }
+        }
+        *metadata = new_metadata;
+    }
+    // TODO - Didio: handle closing connections with primary and such
+
+    release_metadata();
+    std::cerr << "[DEBUG] [Election] [7] (election) Receive message with server (" << winningServer << ")" << std::endl;
 
     server_t *currentServer = get_current_server();
     // Get next server
@@ -402,14 +381,10 @@ void handle_async_election_message(server_t winningServer) {
  * Inbound elected message handler
  */
 void handle_async_elected_message(server_t electedServer){
-    std::cerr << "[DEBUG] [Election] [11] (elected) Receive message with server (";
-    printServer(std::cerr, electedServer);
-    std::cerr << ")" << std::endl;
+    std::cerr << "[DEBUG] [Election] [11] (elected) Receive message with server (" << electedServer << ")" << std::endl;
 
     server_t *currentServer = get_current_server();
-    std::cerr << "[Election] election finished (";
-    printServer(std::cerr, electedServer);
-    std::cerr << ")" << std::endl;
+    std::cerr << "[Election] election finished (" << electedServer << ")" << std::endl;
     // Check if the current server is the elected server (election is concluded) and forward the message if it isn't
     if (!server_eq(currentServer, &electedServer)) {
         // Update the current server's metadata with the elected server's metadata
