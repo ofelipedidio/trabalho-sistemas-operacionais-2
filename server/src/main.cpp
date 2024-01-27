@@ -1,3 +1,4 @@
+#include <complex>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -15,11 +16,13 @@
 #include "../include/closeable.h"
 #include "../include/client.h"
 #include "../include/election.h"
+#include "../include/coms.h"
 
 typedef struct {
-    /************************************************\
-    * The port on which the server will be listening *
-    \************************************************/
+    /*******************************************************\
+    * The ip and port on which the server will be listening *
+    \*******************************************************/
+    uint32_t ip;
     uint16_t port;
 
     /***********************************\
@@ -35,47 +38,181 @@ typedef struct {
 } arguments_t;
 
 int primary_init(arguments_t arguments) {
-    state_init();
-    // Servidor de heartbeat + comunicação entre servidores
-    coms_server_t server = coms_server_init(arguments.port+1);
+    // std::cerr << "[DEBUG] Starting backup" << std::endl;
+    state_init(arguments.ip, arguments.port, backup);
 
-    coms_get_metadata(server);
+    // std::cerr << "[DEBUG] Starting election thread" << std::endl;
+    el_start_thread();
+    // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
+    coms_thread_init();
 
-    // Servidor de arquivos
-    tcp_dump_1("0.0.0.0", arguments.port);
+    // std::cerr << "[DEBUG] Idle" << std::endl;
+    while (true) { }
 
     return EXIT_FAILURE;
-    /*
-    client_init();
+}
 
-    signal(SIGINT, sigint_handler);
-    signal(SIGPIPE, sigpipe_handler);
-    uint16_t port = 4000;
-    if (argc >= 2) {
-        std::string s(argv[1]);
-        std::istringstream iss(s);
-        iss >> port;
+bool initial_handshake(server_t primary_server) {
+    // std::cerr << "[DEBUG] Starting handshake" << std::endl;
+    // Connect to the elected server
+    connection_t *conn;
+    {
+        // Setup
+        // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(primary_server.port + 2);
+        server_addr.sin_addr = { primary_server.ip };
+        bzero(&server_addr.sin_zero, 8);
+
+        // Create socket
+        // std::cerr << "[DEBUG] Creating socket" << std::endl;
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd == -1) {
+            std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl;
+            return false;
+        }
+
+        // Connect
+        // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
+        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+        if (connect_response < 0) {
+            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
+            close(sockfd);
+            return false;
+        }
+
+        add_connection(sockfd);
+
+        // Create connection object
+        // INTERNAL: the client's fields are set to the server's fields on purpose
+        // TODO - Didio: figure out how to get client's IP and port
+        // std::cerr << "[DEBUG] Connecting connection object" << std::endl;
+        conn = conn_new(
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                sockfd);
     }
 
-    tcp_dump_1("0.0.0.0", port);
-    */
+    // Execute hello request
+    {
+        // std::cerr << "[DEBUG] Sending hello message" << std::endl;
+        request_t request = { .type = req_hello };
+        response_t response;
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            // Catch network errors
+            std::cerr << "ERROR 100a" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+
+        // Catch logic errors
+        if (response.status != 0) {
+            std::cerr << "ERROR 101a" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+    }
+    {
+        // std::cerr << "[DEBUG] Sending metadata message" << std::endl;
+        request_t request = { .type = req_fetch_metadata };
+        response_t response;
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            // Catch network errors
+            std::cerr << "ERROR 100b" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+
+        // Catch logic errors
+        if (response.status != 0) {
+            std::cerr << "ERROR 101b" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+
+        // Handle response
+        // std::cerr << "[DEBUG] Acquiring metadata" << std::endl;
+        metadata_t *metadata = acquire_metadata();
+        // Critical section
+        {
+            // std::cerr << "[DEBUG] Updating metadata (len = " << response.metadata.servers.size() << ")" << std::endl;
+            metadata->servers.clear();
+            for (auto server : response.metadata.servers) {
+                std::cerr << "aaa: ";
+                printServer(std::cerr, server);
+                std::cerr << std::endl;
+                metadata->servers.push_back(server);
+            }
+        }
+        // std::cerr << "[DEBUG] Releasing metadata" << std::endl;
+        release_metadata();
+    }
+
+    // Close the connection and free the allocated memory
+    // std::cerr << "[DEBUG] Closing connection" << std::endl;
+    close(conn->sockfd);
+    // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+    conn_free(conn);
+    return true;
 }
 
 int backup_init(arguments_t arguments) {
-    return EXIT_FAILURE;
-    /*
-    client_init();
+    // std::cerr << "[DEBUG] Starting backup" << std::endl;
+    state_init(arguments.ip, arguments.port, backup);
 
-    signal(SIGINT, sigint_handler);
-    uint16_t port = 4000;
-    if (argc >= 2) {
-        std::string s(argv[1]);
-        std::istringstream iss(s);
-        iss >> port;
+    // std::cerr << "[DEBUG] Starting election thread" << std::endl;
+    el_start_thread();
+    // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
+    coms_thread_init();
+
+    server_t primary_server = {
+        .ip = arguments.next_server_ip,
+        .port = arguments.next_server_port,
+    };
+
+    std::cerr << "Primary server: ";
+    printServer(std::cerr, primary_server);
+    std::cerr << std::endl;
+
+    // std::cerr << "[DEBUG] Calling handshake" << std::endl;
+    if (!initial_handshake(primary_server)) {
+        std::cerr << "aaaa1" << std::endl;
     }
 
-    tcp_dump_1("0.0.0.0", port);
-    */
+    sleep(5);
+
+    acquire_metadata();
+    release_metadata();
+
+    sleep(1);
+
+    initiateElection();
+
+    sleep(5);
+
+    acquire_metadata();
+    release_metadata();
+
+
+    // std::cerr << "[DEBUG] Waiting" << std::endl;
+    while (true) {}
+
+    return EXIT_FAILURE;
 }
 
 bool check_ip(char *str, uint32_t *ip) {
@@ -108,64 +245,53 @@ bool check_port(char *str, uint16_t *port) {
 int main(int argc, char **argv) {
     arguments_t arguments;
 
-    // This isn't a great way of getting the arguments, but it gets the job done
-    if (argc >= 2) {
-        if (check_port(argv[1], &arguments.port)) {
-            if (argc >= 3) {
-                if (strcmp(argv[2], "p") == 0) {
-                    if (argc == 3) {
-                        return primary_init(arguments);
-                    } else {
-                        fprintf(stderr, "ERRO: excesso de argumentos!\n");
-                        fprintf(stderr, "\n");
-                        fprintf(stderr, "Uso correto: %s <porta do servidor> p\n", argv[0]);
-                        return EXIT_FAILURE;
-                    }
-                } else if (strcmp(argv[2], "b") == 0) {
-                    if (argc >= 4) {
-                        if (check_ip(argv[3], &arguments.next_server_ip)) {
-                            fprintf(stderr, "addr1 = %x\n", arguments.next_server_ip);
-                            if (argc >= 5) {
-                                if (check_port(argv[4], &arguments.next_server_port)) {
-                                    return backup_init(arguments);
-                                } else {
-                                    fprintf(stderr, "ERRO: \"%s\" nao eh um valor valido para a porta do primario!\n", argv[3]);
-                                    fprintf(stderr, "\n");
-                                    fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-                                    return EXIT_FAILURE;
-                                }
-                            }
-                        } else {
-                            fprintf(stderr, "ERRO: \"%s\" nao eh um valor valido para o IP do primario!\n", argv[3]);
-                            fprintf(stderr, "\n");
-                            fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-                            return EXIT_FAILURE;
-                        }
-                    } else {
-                        fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-                        return EXIT_FAILURE;
-                    }
-                } else {
-                    fprintf(stderr, "ERRO: \"%s\" nao eh um valor valido para o tipo de servidor, utilize 'p' ou 'b'!\n", argv[2]);
-                    fprintf(stderr, "\n");
-                    fprintf(stderr, "Uso correto: %s <porta do servidor> p\n", argv[0]);
-                    fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-                    return EXIT_FAILURE;
-                }
-            } else {
-                fprintf(stderr, "Uso correto: %s <porta do servidor> p\n", argv[0]);
-                fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-            }
-        } else {
-            fprintf(stderr, "ERRO: \"%s\" nao eh um valor valido para a porta do servidor!\n", argv[1]);
-            fprintf(stderr, "\n");
-            fprintf(stderr, "Uso correto: %s <porta do servidor> p\n", argv[0]);
-            fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
-            return EXIT_FAILURE;
-        }
-    } else {
-        fprintf(stderr, "Uso correto: %s <porta do servidor> p\n", argv[0]);
-        fprintf(stderr, "Uso correto: %s <porta do servidor> b <ip do primario> <porta do primario>\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
         return EXIT_FAILURE;
     }
+
+    if (strcmp(argv[1], "p") == 0) {
+        if (argc != 4) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_ip(argv[2], &arguments.ip)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[3], &arguments.port)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        return primary_init(arguments);
+    } else if (strcmp(argv[1], "b") == 0) {
+        if (argc != 6) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_ip(argv[2], &arguments.ip)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[3], &arguments.port)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_ip(argv[4], &arguments.next_server_ip)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[5], &arguments.next_server_port)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        return backup_init(arguments);
+    } else {
+        fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
 }
+

@@ -2,10 +2,11 @@
 
 #include <cinttypes>
 #include <vector>
+#include <iostream>
 
 typedef enum {
     primary,
-    secondary,
+    backup,
 } server_type_t;
 
 typedef struct {
@@ -18,20 +19,23 @@ typedef struct {
     std::vector<server_t> servers;
 } metadata_t;
 
-metadata_t GetMetadata(); //TODO
+void initiateElection();
 
-void initiateElection(); //TODO
+server_t getNextServer(const server_t currentServer);
 
-void setElected(metadata_t& metadata, server_t& electedServer);
+void sendElectionMessage(server_t targetServer, server_t winningServer);
 
-void updateElected(server_t& currentServer, server_t& electedServer); //TODO
+void sendElectedMessage(server_t targetServer, server_t electedServer);
 
-void receiveElectionMessage(metadata_t& metadata, server_t& currentServer, server_t& senderServer);
+void handle_async_election_message(server_t winningServer);
 
-void receiveElectedMessage(metadata_t& metadata, server_t& currentServer, server_t& electedServer);
+void handle_async_elected_message(server_t electedServer);
 
-server_t getNextServer(const metadata_t& metadata, const server_t& currentServer);
+void setElected();
 
-void sendElectionMessage(server_t& targetServer, server_t& winningServer); //TODO
+bool updateElected(server_t electedServer);
 
-void sendElectedMessage(server_t& targetServer, server_t& electedServer); //TODO
+void printServer(std::ostream &stream, const server_t server);
+
+bool el_start_thread();
+

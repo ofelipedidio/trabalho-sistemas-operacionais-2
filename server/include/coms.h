@@ -1,3 +1,5 @@
+#pragma once
+
 /******************************************\
 * This module contains the code related to *
 * the communication between servers.       *
@@ -9,13 +11,13 @@
 typedef struct {
     connection_t inbound_connection;
     connection_t outbound_connection;
-    metadata_t metadata;
 } coms_server_t;
 
 typedef enum {
     req_transaction_start,
     req_transaction_end,
     req_fetch_metadata,
+    req_hello,
 } request_type_t;
 
 typedef struct {
@@ -27,9 +29,7 @@ typedef struct {
     metadata_t metadata;
 } response_t;
 
+bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_t request, response_t *out_response);
 
-/*
- * Gets the metadata from the outbound server
- */
-void update_metadata(coms_server_t *server);
+bool coms_thread_init();
 
