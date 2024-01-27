@@ -82,6 +82,10 @@ bool initial_handshake(server_t primary_server) {
             return false;
         }
 
+        // TODO - Kaiser: KEEP_ALIVE
+        // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
+        // TODO - Kaiser: Idealmente, essa conexão pega o metadata e conecta no primario dessa conexao, mas pode considerar que essa conexao sempre eh com o primario por enquanto
+
         add_connection(sockfd);
 
         // Create connection object

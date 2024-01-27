@@ -15,7 +15,6 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
 
     state.should_stop = false;
 
-    sem_init(&state.coms_server_mutex, 0, 1);
     sem_init(&state.metadata_mutex, 0, 1);
     sem_init(&state.logging_mutex, 0, 1);
 }
@@ -25,22 +24,6 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
 \*************/
 bool should_stop() {
     return state.should_stop;
-}
-
-/*************\
-* Coms server *
-\*************/
-coms_server_t *acquire_coms_server() {
-    sem_wait(&state.coms_server_mutex);
-    return &state.coms_server;
-}
-
-void release_coms_server(coms_server_t *coms_server) {
-    sem_post(&state.coms_server_mutex);
-}
-
-void set_coms_server(coms_server_t *coms_server) {
-    state.coms_server = *coms_server;
 }
 
 /****************\

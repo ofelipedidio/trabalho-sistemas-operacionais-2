@@ -10,9 +10,6 @@ typedef struct {
     sem_t metadata_mutex;
     metadata_t metadata;
 
-    sem_t coms_server_mutex;
-    coms_server_t coms_server;
-
     bool should_stop;
 
     sem_t logging_mutex;
@@ -27,15 +24,6 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type);
 * Should stop *
 \*************/
 bool should_stop();
-
-/*************\
-* Coms server *
-\*************/
-coms_server_t *acquire_coms_server();
-
-void release_coms_server();
-
-void set_coms_server(coms_server_t *coms_server);
 
 /****************\
 * Current server *
