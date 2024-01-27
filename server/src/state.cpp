@@ -17,6 +17,7 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
 
     sem_init(&state.coms_server_mutex, 0, 1);
     sem_init(&state.metadata_mutex, 0, 1);
+    sem_init(&state.logging_mutex, 0, 1);
 }
 
 /*************\
@@ -79,5 +80,14 @@ void release_metadata() {
     std::cerr << "]" << std::endl;
 
     sem_post(&state.metadata_mutex);
+}
+
+
+void acquire_logging_mutex() {
+    sem_wait(&state.logging_mutex);
+}
+
+void release_logging_mutex() {
+    sem_post(&state.logging_mutex);
 }
 

@@ -14,6 +14,8 @@ typedef struct {
     coms_server_t coms_server;
 
     bool should_stop;
+
+    sem_t logging_mutex;
 } program_state_t;
 
 /****************\
@@ -51,3 +53,9 @@ server_t *get_primary_server();
 metadata_t *acquire_metadata();
 
 void release_metadata();
+
+void acquire_logging_mutex();
+
+void release_logging_mutex();
+
+#define LOG_SYNC(x) acquire_logging_mutex(); x; release_logging_mutex()

@@ -145,7 +145,7 @@ void sendElectionMessage(server_t nextServer, server_t winningServer) {
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1] Could not connect to the server" << std::endl;
+            std::cerr << "ERROR: [Election connection init 2] Could not connect to the server" << std::endl;
             return;
         }
 
@@ -202,14 +202,14 @@ void sendElectedMessage(server_t nextServer, server_t electedServer) {
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            std::cerr << "ERROR: [Election connection init 1] Could not create the socket" << std::endl;
+            std::cerr << "ERROR: [Election connection init 3] Could not create the socket" << std::endl;
             return;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1] Could not connect to the server" << std::endl;
+            std::cerr << "ERROR: [Election connection init 4] Could not connect to the server" << std::endl;
             return;
         }
 

@@ -186,9 +186,27 @@ typedef struct {
     struct sockaddr_in server_address;
 } coms_listener_arguments_t;
 
-void *coms_listener_thread(void *args) {
-    // std::cerr << "[DEBUG] [Coms Thread] Thread created" << std::endl;
+void coms_handle_connection(connection_t *connection) {
+        server_t server = {
+            .ip = connection->client_address.s_addr,
+            .port = connection->client_port,
+            .server_type = backup,
+        };
 
+        LOG_SYNC(std::cerr << "[Coms] Received a connection from " << server << std::endl);
+
+        bool error_occurred = false;
+
+        while (!(error_occurred || should_stop())) {
+            // std::cerr << "[DEBUG] [Coms Thread] Handling message (e = " << (error_occurred ? "true" : "false") << ")" << std::endl;
+            if (!coms_handle_request(&connection->reader, &connection->writer, server)) {
+                error_occurred = true;
+                break;
+            }
+        }
+}
+
+void *coms_listener_thread(void *args) {
     struct sockaddr_in server_address;
     int listen_sockfd;
 
@@ -203,7 +221,7 @@ void *coms_listener_thread(void *args) {
         // std::cerr << "[DEBUG] [Coms] Creating socket" << std::endl;
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
-            std::cerr << "aaaaaaaaaaaaaaaaaaaaa1" << std::endl;
+            LOG_SYNC(std::cerr << "aaaaaaaaaaaaaaaaaaaaa1" << std::endl);
             exit(1);
         }
 
@@ -215,7 +233,7 @@ void *coms_listener_thread(void *args) {
 
         // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
-            std::cerr << "aaaaaaaaaaaaaaaaaaaaa2" << std::endl;
+            LOG_SYNC(std::cerr << "aaaaaaaaaaaaaaaaaaaaa2" << std::endl);
             exit(1);
         }
 
@@ -250,25 +268,7 @@ void *coms_listener_thread(void *args) {
                 ntohs(client_address.sin_port),
                 connection_sockfd);
 
-        server_t server = {
-            .ip = client_address.sin_addr.s_addr,
-            .port = client_address.sin_port,
-            .server_type = backup,
-        };
-
-        std::cerr << "[Coms] Received a connection from ";
-        printServer(std::cerr, server);
-        std::cerr << std::endl;
-
-        bool error_occurred = false;
-
-        while (!(error_occurred || should_stop())) {
-            // std::cerr << "[DEBUG] [Coms Thread] Handling message (e = " << (error_occurred ? "true" : "false") << ")" << std::endl;
-            if (!coms_handle_request(&connection->reader, &connection->writer, server)) {
-                error_occurred = true;
-                break;
-            }
-        }
+        coms_handle_connection(connection);
     }
 
     close(listen_sockfd);

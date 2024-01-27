@@ -39,3 +39,7 @@ void printServer(std::ostream &stream, const server_t server);
 
 bool el_start_thread();
 
+inline std::ostream &operator<<(std::ostream &stream, const server_t &server){
+    return stream << std::hex << server.ip << std::dec << ':' << server.port << "[" << (server.server_type == primary ? "p" : "b") << "]";
+}
+
