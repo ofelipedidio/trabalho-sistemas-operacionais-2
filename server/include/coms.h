@@ -69,3 +69,5 @@ void *heartbeat_writer_thread(void *args);
 bool heartbeat_thread_init();
 
 bool primary_heartbeat_thread_init();
+
+bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection);

@@ -48,53 +48,15 @@ int primary_init(arguments_t arguments) {
     std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl;
     primary_heartbeat_thread_init();
 
+    tcp_dump_1("0.0.0.0", arguments.port);
+
     // std::cerr << "[DEBUG] Idle" << std::endl;
     while (true) { }
 
     return EXIT_FAILURE;
 }
 
-bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection) {
-    connection_t *conn;
-    {
-        // Setup
-        struct sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(port);
-        server_addr.sin_addr = { ip };
-        bzero(&server_addr.sin_zero, 8);
 
-        // Create socket
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd == -1) {
-            std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl;
-            return false;
-        }
-
-        // Connect
-        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-        if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
-            close(sockfd);
-            return false;
-        }
-
-        add_connection(sockfd);
-
-        // Create connection object
-        // INTERNAL: the client's fields are set to the server's fields on purpose
-        // TODO - Didio: figure out how to get client's IP and port
-        conn = conn_new(
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                sockfd);
-    }
-    *out_connection = conn;
-
-    return true;
-}
 
 bool heartbeat_handshake(server_t primary_server){
     connection_t *conn;
@@ -361,15 +323,12 @@ int backup_init(arguments_t arguments) {
     
 
     sleep(2);
-
-    acquire_metadata();
-    release_metadata();
-
     //initiateElection();
 
 
     heartbeat_thread_init();
     // std::cerr << "[DEBUG] Waiting" << std::endl;
+    tcp_dump_1("0.0.0.0", arguments.port);
     while (true) {}
 
     return EXIT_FAILURE;
@@ -405,13 +364,16 @@ bool check_port(char *str, uint16_t *port) {
 int main(int argc, char **argv) {
     arguments_t arguments;
 
+    signal(SIGPIPE, sigpipe_handler);
+    signal(SIGINT, sigint_handler);
+
+    client_init();
     if (argc < 2) {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    signal(SIGPIPE, sigpipe_handler);
 
     if (strcmp(argv[1], "p") == 0) {
         if (argc != 4) {

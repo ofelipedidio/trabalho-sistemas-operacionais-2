@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <ostream>
 
-bool request_handshake(connection_t *connection, std::string username,
+bool request_handshake(connection_t *connection, std::string username, bool from_primary,
         uint8_t *out_status) {
     // Send the request
     if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
@@ -14,10 +14,13 @@ bool request_handshake(connection_t *connection, std::string username,
     if (!write_string(connection->writer, username)) {
         return false;
     }
+    if (!write_u8(connection->writer, from_primary?1:0)) {
+        return false;
+    }
     if (!flush(connection->writer)) {
         return false;
     }
-
+    
     uint16_t protocol_version;
     if (!read_u16(connection->reader, &protocol_version)) {
         return false;
@@ -28,7 +31,7 @@ bool request_handshake(connection_t *connection, std::string username,
     if (!read_u8(connection->reader, out_status)) {
         return false;
     }
-
+    
     return true;
 }
 

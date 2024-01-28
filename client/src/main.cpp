@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     if (!Network::init(ip, port)) {
         return EXIT_FAILURE;
     }
-  
+    std::cerr << "[Initialization] Created Network" << std::endl;
     system(("rm -rf sync_dir_" + username).c_str());
     system(("mkdir -p sync_dir_" + username).c_str());
 

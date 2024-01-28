@@ -49,6 +49,11 @@ typedef struct {
     std::queue<file_event_t> pending_events;
 
     /*
+     * if this client is actually a primary server
+     */
+    bool from_primary;
+
+    /*
      * A mutex that prevents mutual access of the client
      */
     sem_t mutex;
@@ -64,7 +69,7 @@ void client_init();
  *
  * Returns a nullptr and closes the TCP connection, if there are too many connections to the same username.
  */
-client_t *client_new(std::string username, connection_t *connection);
+client_t *client_new(std::string username, connection_t *connection,bool from_primary);
 
 /*
  * Removes the client from the server

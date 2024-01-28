@@ -31,7 +31,7 @@ typedef struct {
     std::string filename;
 } file_event_t;
 
-bool request_handshake(connection_t *connection, std::string username, uint8_t *out_status);
+bool request_handshake(connection_t *connection, std::string username, bool from_primary, uint8_t *out_status);
 
 bool request_download(connection_t *connection, std::string filename, uint8_t *out_status, uint8_t **out_buf, uint64_t *out_length);
 
