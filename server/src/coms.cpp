@@ -63,6 +63,9 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
             coms_exec(write_u8(*writer, 16));
             coms_exec(write_u16(*writer, current_server->port));
             break;
+        case req_get_primary:
+            coms_exec(write_u8(*writer, 17));
+            break;
     }
 
     coms_exec(flush(*writer));
@@ -97,6 +100,15 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
 
         case req_register:
             coms_exec(read_u16(*reader, &out_response->status));
+            break;
+
+        case req_get_primary:
+            coms_exec(read_u16(*reader, &out_response->status));
+            if (out_response->status != STATUS_OK) {
+                return false;
+            }
+            coms_exec(read_u32(*reader, &out_response->ip));
+            coms_exec(read_u16(*reader, &out_response->port));
             break;
     }
 
@@ -169,6 +181,18 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t server
                     release_metadata();
                 }
                 coms_exec(write_u16(*writer, STATUS_OK));
+                coms_exec(flush(*writer));
+            }
+            break;
+
+        case 17:
+            // req_get_primary
+            {
+                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_get_primary)" << std::endl);
+                server_t *primary_server = get_primary_server();
+                coms_exec(write_u16(*writer, STATUS_OK));
+                coms_exec(write_u32(*writer, primary_server->ip));
+                coms_exec(write_u16(*writer, primary_server->port));
                 coms_exec(flush(*writer));
             }
             break;

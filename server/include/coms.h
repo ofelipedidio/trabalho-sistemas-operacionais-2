@@ -7,6 +7,7 @@
 
 #include "connection.h"
 #include "election.h"
+#include <cstdint>
 
 typedef struct {
     connection_t inbound_connection;
@@ -47,6 +48,8 @@ typedef enum {
      * Exchange startup information
      */
     req_register,
+
+    req_get_primary,
 } request_type_t;
 
 typedef struct {
@@ -56,6 +59,8 @@ typedef struct {
 typedef struct {
     uint16_t status;
     metadata_t metadata;
+    uint32_t ip;
+    uint16_t port;
 } response_t;
 
 bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_t request, response_t *out_response);
