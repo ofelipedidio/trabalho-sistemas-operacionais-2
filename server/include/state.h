@@ -67,3 +67,4 @@ std::vector <connection_t*>* get_heartbeat_connections();
 void release_heartbeat_connections();
 
 #define LOG_SYNC(x) acquire_logging_mutex(); x; release_logging_mutex()
+// #define LOG_SYNC(x)

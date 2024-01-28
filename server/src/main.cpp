@@ -45,7 +45,7 @@ int primary_init(arguments_t arguments) {
     el_start_thread();
     // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
     coms_thread_init();
-    std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl;
+    LOG_SYNC(std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl);
     primary_heartbeat_thread_init();
 
     // std::cerr << "[DEBUG] Idle" << std::endl;
@@ -67,14 +67,14 @@ bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl);
             return false;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
             close(sockfd);
             return false;
         }
@@ -111,7 +111,7 @@ bool heartbeat_handshake(server_t primary_server){
         // std::cerr << "[DEBUG] Creating socket" << std::endl;
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl);
             return false;
         }
 
@@ -119,7 +119,7 @@ bool heartbeat_handshake(server_t primary_server){
         // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
             close(sockfd);
             return false;
         }
@@ -137,7 +137,7 @@ bool heartbeat_handshake(server_t primary_server){
             close(sockfd);
             exit(EXIT_FAILURE);
         }
-        std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
+        LOG_SYNC(std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl);
 
         // TODO - Kaiser: KEEP_ALIVE
         // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
@@ -179,7 +179,7 @@ bool initial_handshake(server_t primary_server) {
         // std::cerr << "[DEBUG] Creating socket" << std::endl;
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl);
             return false;
         }
 
@@ -205,7 +205,7 @@ bool initial_handshake(server_t primary_server) {
             close(sockfd);
             exit(EXIT_FAILURE);
         }
-        std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
+        LOG_SYNC(std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl);
 
         // TODO - Kaiser: KEEP_ALIVE
         // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
@@ -235,7 +235,7 @@ bool initial_handshake(server_t primary_server) {
         response_t response;
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             // Catch network errors
-            std::cerr << "ERROR 100a" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 100a" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -245,7 +245,7 @@ bool initial_handshake(server_t primary_server) {
 
         // Catch logic errors
         if (response.status != 0) {
-            std::cerr << "ERROR 101a" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 101a" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -261,7 +261,7 @@ bool initial_handshake(server_t primary_server) {
         response_t response;
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             // Catch network errors
-            std::cerr << "ERROR 100a" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 100a" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -271,7 +271,7 @@ bool initial_handshake(server_t primary_server) {
 
         // Catch logic errors
         if (response.status != 0) {
-            std::cerr << "ERROR 101a" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 101a" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -287,7 +287,7 @@ bool initial_handshake(server_t primary_server) {
         response_t response;
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             // Catch network errors
-            std::cerr << "ERROR 100b" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 100b" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -297,7 +297,7 @@ bool initial_handshake(server_t primary_server) {
 
         // Catch logic errors
         if (response.status != 0) {
-            std::cerr << "ERROR 101b" << std::endl;
+            LOG_SYNC(std::cerr << "ERROR 101b" << std::endl);
             // std::cerr << "[DEBUG] Closing connection" << std::endl;
             close(conn->sockfd);
             // std::cerr << "[DEBUG] Freeing connection" << std::endl;
@@ -313,9 +313,7 @@ bool initial_handshake(server_t primary_server) {
             // std::cerr << "[DEBUG] Updating metadata (len = " << response.metadata.servers.size() << ")" << std::endl;
             metadata->servers.clear();
             for (auto server : response.metadata.servers) {
-                std::cerr << "aaa: ";
-                printServer(std::cerr, server);
-                std::cerr << std::endl;
+                LOG_SYNC(std::cerr << "aaa: " << server << std::endl);
                 metadata->servers.push_back(server);
             }
         }
@@ -345,18 +343,16 @@ int backup_init(arguments_t arguments) {
         .port = arguments.next_server_port,
     };
 
-    std::cerr << "Primary server: ";
-    printServer(std::cerr, primary_server);
-    std::cerr << std::endl;
+    LOG_SYNC(std::cerr << "Primary server: " << primary_server << std::endl);
 
     // std::cerr << "[DEBUG] Calling handshake" << std::endl;
     if (!initial_handshake(primary_server)) {
-        std::cerr << "aaaa1" << std::endl;
+        LOG_SYNC(std::cerr << "aaaa1" << std::endl);
     }
 
     if (!heartbeat_handshake(primary_server))
     {
-        std::cerr << "bbbb1" << std::endl;
+        LOG_SYNC(std::cerr << "bbbb1" << std::endl);
     }
     
 
