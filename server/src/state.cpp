@@ -17,6 +17,8 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
 
     sem_init(&state.metadata_mutex, 0, 1);
     sem_init(&state.logging_mutex, 0, 1);
+    sem_init(&state.heartbeatSocket_mutex, 0, 1);
+    sem_init(&state.heartbeatvector_mutex, 0, 1);
 }
 
 /*************\
@@ -74,3 +76,30 @@ void release_logging_mutex() {
     sem_post(&state.logging_mutex);
 }
 
+/***********\
+* Heartbeat *
+\***********/
+
+connection_t** get_heartbeat_socket(){
+    sem_wait(&state.heartbeatSocket_mutex);
+    return &state.heartbeatSocket;
+}
+
+void set_heartbeat_socket(connection_t *heartbeatconnection){
+    connection_t **new_socket = get_heartbeat_socket();
+    (*new_socket) = heartbeatconnection;
+    release_heartbeat_socket();
+}
+
+void release_heartbeat_socket(){
+    sem_post(&state.heartbeatSocket_mutex);
+}
+
+std::vector <connection_t*>* get_heartbeat_connections(){
+    sem_wait(&state.heartbeatvector_mutex);
+    return &state.heartbeatconnections;
+}
+
+void release_heartbeat_connections(){
+    sem_post(&state.heartbeatvector_mutex);
+}

@@ -33,3 +33,10 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
 
 bool coms_thread_init();
 
+void *heartbeat_listener_thread(void *args);
+
+void *heartbeat_writer_thread(void *args);
+
+bool heartbeat_thread_init();
+
+bool primary_heartbeat_thread_init();
