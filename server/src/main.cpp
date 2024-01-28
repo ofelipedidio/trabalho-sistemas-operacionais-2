@@ -39,12 +39,14 @@ typedef struct {
 
 int primary_init(arguments_t arguments) {
     // std::cerr << "[DEBUG] Starting backup" << std::endl;
-    state_init(arguments.ip, arguments.port, backup);
+    state_init(arguments.ip, arguments.port, primary);
 
     // std::cerr << "[DEBUG] Starting election thread" << std::endl;
     el_start_thread();
     // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
     coms_thread_init();
+    std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl;
+    primary_heartbeat_thread_init();
 
     // std::cerr << "[DEBUG] Idle" << std::endl;
     while (true) { }
@@ -94,6 +96,72 @@ bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection
     return true;
 }
 
+bool heartbeat_handshake(server_t primary_server){
+    connection_t *conn;
+    {
+        // Setup
+        // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(primary_server.port + 3);
+        server_addr.sin_addr = { primary_server.ip };
+        bzero(&server_addr.sin_zero, 8);
+
+        // Create socket
+        // std::cerr << "[DEBUG] Creating socket" << std::endl;
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd == -1) {
+            std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl;
+            return false;
+        }
+
+        // Connect
+        // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
+        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+        if (connect_response < 0) {
+            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
+            close(sockfd);
+            return false;
+        }
+
+        int optval = 1;
+        socklen_t optlen = sizeof(optval);
+        if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+            perror("setsockopt()");
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if(getsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
+            perror("getsockopt()");
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
+        std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
+
+        // TODO - Kaiser: KEEP_ALIVE
+        // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
+        // TODO - Kaiser: Idealmente, essa conexão pega o metadata e conecta no primario dessa conexao, mas pode considerar que essa conexao sempre eh com o primario por enquanto
+
+        add_connection(sockfd);
+
+        // Create connection object
+        // INTERNAL: the client's fields are set to the server's fields on purpose
+        // TODO - Didio: figure out how to get client's IP and port
+        // std::cerr << "[DEBUG] Connecting connection object" << std::endl;
+        conn = conn_new(
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                sockfd);
+
+        set_heartbeat_socket(conn);
+        return true;
+    }
+}
+
+
 bool initial_handshake(server_t primary_server) {
     // std::cerr << "[DEBUG] Starting handshake" << std::endl;
     // Connect to the elected server
@@ -124,6 +192,21 @@ bool initial_handshake(server_t primary_server) {
             return false;
         }
 
+        int optval = 1;
+        socklen_t optlen = sizeof(optval);
+        if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+            perror("setsockopt()");
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if(getsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
+            perror("getsockopt()");
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
+        std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
+
         // TODO - Kaiser: KEEP_ALIVE
         // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
         // TODO - Kaiser: Idealmente, essa conexão pega o metadata e conecta no primario dessa conexao, mas pode considerar que essa conexao sempre eh com o primario por enquanto
@@ -140,6 +223,9 @@ bool initial_handshake(server_t primary_server) {
                 server_addr.sin_addr,
                 ntohs(server_addr.sin_port),
                 sockfd);
+
+        set_heartbeat_socket(conn);
+
     }
 
     // Execute hello request
@@ -239,9 +325,9 @@ bool initial_handshake(server_t primary_server) {
 
     // Close the connection and free the allocated memory
     // std::cerr << "[DEBUG] Closing connection" << std::endl;
-    close(conn->sockfd);
+    //close(conn->sockfd);
     // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-    conn_free(conn);
+    //conn_free(conn);
     return true;
 }
 
@@ -268,21 +354,21 @@ int backup_init(arguments_t arguments) {
         std::cerr << "aaaa1" << std::endl;
     }
 
-    sleep(5);
+    if (!heartbeat_handshake(primary_server))
+    {
+        std::cerr << "bbbb1" << std::endl;
+    }
+    
+
+    sleep(2);
 
     acquire_metadata();
     release_metadata();
 
-    sleep(1);
-
-    initiateElection();
-
-    sleep(5);
-
-    acquire_metadata();
-    release_metadata();
+    //initiateElection();
 
 
+    heartbeat_thread_init();
     // std::cerr << "[DEBUG] Waiting" << std::endl;
     while (true) {}
 
@@ -324,6 +410,8 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
+
+    signal(SIGPIPE, sigpipe_handler);
 
     if (strcmp(argv[1], "p") == 0) {
         if (argc != 4) {

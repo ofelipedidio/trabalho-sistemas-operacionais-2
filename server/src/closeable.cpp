@@ -26,9 +26,7 @@ void sigint_handler(int param) {
 }
 
 void sigpipe_handler(int signal_number) {
-    std::cerr << "\n[SIGPIPE_HANDLER]Caught SIGPIPE signal (" << signal_number << ")." << std::endl;
-    std::cout << "INICIA A ELEIÇÃO PFV \n";
-      
+    std::cerr << "\n[SIGPIPE_HANDLER]Caught SIGPIPE signal (" << signal_number << ")." << std::endl;      
     // TODO - Didio: close connection with primary
     //closeSocket();
     initiateElection();

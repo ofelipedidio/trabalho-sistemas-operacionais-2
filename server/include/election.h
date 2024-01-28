@@ -21,6 +21,8 @@ typedef struct {
 
 void initiateElection();
 
+bool server_eq(const server_t *a, const server_t *b);
+
 server_t getNextServer(const server_t currentServer);
 
 void sendElectionMessage(server_t targetServer, server_t winningServer);

@@ -44,9 +44,25 @@ bool server_eq(const server_t *a, const server_t *b) {
 }
 
 void initiateElection() {
+    server_t *currentServer = get_current_server();
+    if((*currentServer).server_type == primary) return;
+    metadata_t *metadata = acquire_metadata();
+    {
+        metadata_t new_metadata;
+        for(auto server : metadata->servers) {
+            if (server.server_type != primary) {
+                new_metadata.servers.push_back(server);
+            }
+        }
+        *metadata = new_metadata;
+    }
+    // TODO - Didio: handle closing connections with primary and such
+
+    release_metadata();
+    
     std::cerr << "[DEBUG] [Election] [1] Initiated" << std::endl;
     // Get current server
-    server_t *currentServer = get_current_server();
+    
     // Get next server
     server_t nextServer = getNextServer(*currentServer);
 
