@@ -1,97 +1,0 @@
-Read: G E T   /   H T | GET / HT
-Read: P / 1 . 1  
- H | P/1.1
-H
-Read: s t :   l o c a | st: loca
-Read: h o s t : 5 4 3 | host:543
-Read: 1  
- C o n n e | 1
-Conne
-Read: t i o n :   k e | tion: ke
-Read: p - a l i v e  | p-alive
-Read: s e c - c h - u | sec-ch-u
-Read: :   " C h r o m | : "Chrom
-Read: u m " ; v = " 1 | um";v="1
-Read: 8 " ,   " G o o | 8", "Goo
-Read: l e   C h r o m | le Chrom
-Read: " ; v = " 1 1 8 | ";v="118
-Read: ,   " N o t = A | , "Not=A
-Read: B r a n d " ; v | Brand";v
-Read: " 9 9 "  
- s e | "99"
-se
-Read: - c h - u a - m | -ch-ua-m
-Read: b i l e :   ? 0 | bile: ?0
-Read: 
- s e c - c h - | 
-sec-ch-
-Read: a - p l a t f o | a-platfo
-Read: m :   " L i n u | m: "Linu
-Read: "  
- U p g r a | "
-Upgra
-Read: e - I n s e c u | e-Insecu
-Read: e - R e q u e s | e-Reques
-Read: s :   1  
- U s | s: 1
-Us
-Read: r - A g e n t : | r-Agent:
-Read: M o z i l l a / | Mozilla/
-Read: . 0   ( X 1 1 ; | .0 (X11;
-Read: L i n u x   x 8 | Linux x8
-Read: _ 6 4 )   A p p | _64) App
-Read: e W e b K i t / | eWebKit/
-Read: 3 7 . 3 6   ( K | 37.36 (K
-Read: T M L ,   l i k | TML, lik
-Read:   G e c k o )   |  Gecko) 
-Read: h r o m e / 1 1 | hrome/11
-Read: . 0 . 0 . 0   S | .0.0.0 S
-Read: f a r i / 5 3 7 | fari/537
-Read: 3 6  
- A c c e | 36
-Acce
-Read: t :   t e x t / | t: text/
-Read: t m l , a p p l | tml,appl
-Read: c a t i o n / x | cation/x
-Read: t m l + x m l , | tml+xml,
-Read: p p l i c a t i | pplicati
-Read: n / x m l ; q = | n/xml;q=
-Read: . 9 , i m a g e | .9,image
-Read: a v i f , i m a | avif,ima
-Read: e / w e b p , i | e/webp,i
-Read: a g e / a p n g | age/apng
-Read: * / * ; q = 0 . | */*;q=0.
-Read: , a p p l i c a | ,applica
-Read: i o n / s i g n | ion/sign
-Read: d - e x c h a n | d-exchan
-Read: e ; v = b 3 ; q | e;v=b3;q
-Read: 0 . 7  
- S e c | 0.7
-Sec
-Read: F e t c h - S i | Fetch-Si
-Read: e :   n o n e  | e: none
-Read: S e c - F e t c | Sec-Fetc
-Read: - M o d e :   n | -Mode: n
-Read: v i g a t e  
- | vigate
-
-Read: e c - F e t c h | ec-Fetch
-Read: U s e r :   ? 1 | User: ?1
-Read: 
- S e c - F e t | 
-Sec-Fet
-Read: h - D e s t :   | h-Dest: 
-Read: o c u m e n t  | ocument
-Read: A c c e p t - E | Accept-E
-Read: c o d i n g :   | coding: 
-Read: z i p ,   d e f | zip, def
-Read: a t e ,   b r  | ate, br
-Read: A c c e p t - L | Accept-L
-Read: n g u a g e :   | nguage: 
-Read: n - U S , e n ; | n-US,en;
-Read: = 0 . 9 , p t - | =0.9,pt-
-Read: R ; q = 0 . 8 , | R;q=0.8,
-Read: t ; q = 0 . 7  | t;q=0.7
-Read:  
- | 
-
