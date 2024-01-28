@@ -54,6 +54,48 @@ int primary_init(arguments_t arguments) {
     return EXIT_FAILURE;
 }
 
+bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection) {
+    connection_t *conn;
+    {
+        // Setup
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        server_addr.sin_addr = { ip };
+        bzero(&server_addr.sin_zero, 8);
+
+        // Create socket
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd == -1) {
+            std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl;
+            return false;
+        }
+
+        // Connect
+        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+        if (connect_response < 0) {
+            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
+            close(sockfd);
+            return false;
+        }
+
+        add_connection(sockfd);
+
+        // Create connection object
+        // INTERNAL: the client's fields are set to the server's fields on purpose
+        // TODO - Didio: figure out how to get client's IP and port
+        conn = conn_new(
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                sockfd);
+    }
+    *out_connection = conn;
+
+    return true;
+}
+
 bool heartbeat_handshake(server_t primary_server){
     connection_t *conn;
     {
@@ -365,7 +407,7 @@ int main(int argc, char **argv) {
 
     if (argc < 2) {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
-        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -387,29 +429,29 @@ int main(int argc, char **argv) {
         return primary_init(arguments);
     } else if (strcmp(argv[1], "b") == 0) {
         if (argc != 6) {
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
         if (!check_ip(argv[2], &arguments.ip)) {
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
         if (!check_port(argv[3], &arguments.port)) {
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
         if (!check_ip(argv[4], &arguments.next_server_ip)) {
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
         if (!check_port(argv[5], &arguments.next_server_port)) {
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
         return backup_init(arguments);
     } else {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
-        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip do primario> <porta do primario>\n", argv[0]);
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
