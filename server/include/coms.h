@@ -13,11 +13,40 @@ typedef struct {
     connection_t outbound_connection;
 } coms_server_t;
 
+#define STATUS_OK 0
+#define STATUS_INVALID_REQUEST_TYPE 10
+#define STATUS_NOT_IMPLEMENTED 11
+#define STATUS_TRANSACTION_ERROR 12
+
 typedef enum {
+    /*
+     * Starts transaction
+     *
+     * If a transaction has already been initiated, returns STATUS_TRANSACTION_ERROR
+     */
     req_transaction_start,
+    
+    /*
+     * End transaction
+     *
+     * If a transaction has not already been initiated, returns STATUS_TRANSACTION_ERROR
+     */
     req_transaction_end,
+    
+    /*
+     * Request metadata
+     */
     req_fetch_metadata,
+
+    /*
+     * Exchange connection start information
+     */
     req_hello,
+
+    /*
+     * Exchange startup information
+     */
+    req_register,
 } request_type_t;
 
 typedef struct {
