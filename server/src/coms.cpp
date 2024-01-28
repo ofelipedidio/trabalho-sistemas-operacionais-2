@@ -629,7 +629,7 @@ void *heartbeat_listener_thread(void *args) {
                 ntohs(client_address.sin_port),
                 connection_sockfd);
 
-        coms_handle_connection(connection);
+        // coms_handle_connection(connection,);
         std::vector <connection_t*> *coneccoes = get_heartbeat_connections();
         (*coneccoes).push_back(connection);
         release_heartbeat_connections();
