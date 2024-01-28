@@ -647,6 +647,11 @@ void *heartbeat_writer_thread(void *args) {
         {
 
             server_t *primary_server = get_primary_server();
+            server_t *current_server = get_current_server();
+
+            if (server_eq(primary_server,current_server)){
+                return NULL;
+            }
             // Setup
             // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
             struct sockaddr_in server_addr;
