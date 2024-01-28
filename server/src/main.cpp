@@ -125,6 +125,34 @@ bool initial_handshake(server_t primary_server) {
             return false;
         }
     }
+
+    // Execute register request
+    {
+        // std::cerr << "[DEBUG] Sending hello message" << std::endl;
+        request_t request = { .type = req_register };
+        response_t response;
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            // Catch network errors
+            std::cerr << "ERROR 100a" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+
+        // Catch logic errors
+        if (response.status != 0) {
+            std::cerr << "ERROR 101a" << std::endl;
+            // std::cerr << "[DEBUG] Closing connection" << std::endl;
+            close(conn->sockfd);
+            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
+            conn_free(conn);
+            return false;
+        }
+    }
+
+    // Execute fetch metadata
     {
         // std::cerr << "[DEBUG] Sending metadata message" << std::endl;
         request_t request = { .type = req_fetch_metadata };
