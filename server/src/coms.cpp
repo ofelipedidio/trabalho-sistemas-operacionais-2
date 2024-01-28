@@ -508,7 +508,9 @@ void *coms_listener_thread(void *args) {
     // Configure socket to listen
     {
         server_t *current_server = get_current_server();
+        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] current_server = " << *current_server << std::endl);
 
+        // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
         // Initialize the socket
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
@@ -523,7 +525,7 @@ void *coms_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
+        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
             LOG_SYNC(std::cerr << "ERROR: [COMMUNICATIONS] Call to bind returned -1 (errno = " << errno_print(errno) << ")" << std::endl);
             exit(1);
@@ -601,6 +603,7 @@ void *heartbeat_listener_thread(void *args) {
 
     {
         server_t *current_server = get_current_server();
+        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] current_server = " << *current_server << std::endl);
 
         // Initialize the socket
         // std::cerr << "[DEBUG] [Coms] Creating socket" << std::endl;
@@ -617,6 +620,7 @@ void *heartbeat_listener_thread(void *args) {
         bzero(&(server_address.sin_zero), 8);
 
         // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
+        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
             LOG_SYNC(std::cerr << "bbbbbbbbbbbbbbbbbbbbb2" << std::endl);
             exit(1);
@@ -744,7 +748,7 @@ void *heartbeat_writer_thread(void *args) {
                 initiateElection();
                 break;
             }
-            std::cerr << "[Heartbeat] heartbeat sent from backup" << std::endl;
+            LOG_SYNC(std::cerr << "[Heartbeat] heartbeat sent from backup" << std::endl);
         }    
     }
     

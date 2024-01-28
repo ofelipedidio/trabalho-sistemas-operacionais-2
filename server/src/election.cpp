@@ -423,6 +423,7 @@ void *election_listener_thread(void *args) {
 
     {
         server_t *current_server = get_current_server();
+        LOG_SYNC(std::cerr << "[DEBUG] [ELECTION] current_server = " << *current_server << std::endl);
 
         int connection_sockfd;
         socklen_t client_length;
@@ -442,7 +443,7 @@ void *election_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Binding socket" << std::endl);
+        LOG_SYNC(std::cerr << "[DEBUG] [ELECTION] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
             LOG_SYNC(std::cerr << "aaaaaaaaaaaaaaaaaaaaa2" << std::endl);
             exit(1);
