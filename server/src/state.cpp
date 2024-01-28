@@ -16,6 +16,7 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
     state.should_stop = false;
 
     sem_init(&state.metadata_mutex, 0, 1);
+    sem_init(&state.should_stop_mutex, 0, 1);
     sem_init(&state.logging_mutex, 0, 1);
     sem_init(&state.heartbeatSocket_mutex, 0, 1);
     sem_init(&state.heartbeatvector_mutex, 0, 1);
@@ -25,7 +26,16 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
 * Should stop *
 \*************/
 bool should_stop() {
-    return state.should_stop;
+    sem_wait(&state.should_stop_mutex);
+    bool should_stop = state.should_stop;
+    sem_post(&state.should_stop_mutex);
+    return should_stop;
+}
+
+void set_should_stop(bool value) {
+    sem_wait(&state.should_stop_mutex);
+    state.should_stop = value;
+    sem_post(&state.should_stop_mutex);
 }
 
 /****************\

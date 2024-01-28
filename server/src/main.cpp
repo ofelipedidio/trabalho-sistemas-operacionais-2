@@ -96,72 +96,6 @@ bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection
     return true;
 }
 
-bool heartbeat_handshake(server_t primary_server){
-    connection_t *conn;
-    {
-        // Setup
-        // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
-        struct sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(primary_server.port + 3);
-        server_addr.sin_addr = { primary_server.ip };
-        bzero(&server_addr.sin_zero, 8);
-
-        // Create socket
-        // std::cerr << "[DEBUG] Creating socket" << std::endl;
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl);
-            return false;
-        }
-
-        // Connect
-        // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
-        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-        if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
-            close(sockfd);
-            return false;
-        }
-
-        int optval = 1;
-        socklen_t optlen = sizeof(optval);
-        if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
-            perror("setsockopt()");
-            close(sockfd);
-            exit(EXIT_FAILURE);
-        }
-
-        if(getsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
-            perror("getsockopt()");
-            close(sockfd);
-            exit(EXIT_FAILURE);
-        }
-        LOG_SYNC(std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl);
-
-        // TODO - Kaiser: KEEP_ALIVE
-        // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
-        // TODO - Kaiser: Idealmente, essa conexão pega o metadata e conecta no primario dessa conexao, mas pode considerar que essa conexao sempre eh com o primario por enquanto
-
-        add_connection(sockfd);
-
-        // Create connection object
-        // INTERNAL: the client's fields are set to the server's fields on purpose
-        // TODO - Didio: figure out how to get client's IP and port
-        // std::cerr << "[DEBUG] Connecting connection object" << std::endl;
-        conn = conn_new(
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                sockfd);
-
-        set_heartbeat_socket(conn);
-        return true;
-    }
-}
-
-
 bool initial_handshake(server_t primary_server) {
     // std::cerr << "[DEBUG] Starting handshake" << std::endl;
     // Connect to the elected server
@@ -223,9 +157,6 @@ bool initial_handshake(server_t primary_server) {
                 server_addr.sin_addr,
                 ntohs(server_addr.sin_port),
                 sockfd);
-
-        set_heartbeat_socket(conn);
-
     }
 
     // Execute hello request
@@ -329,43 +260,161 @@ bool initial_handshake(server_t primary_server) {
     return true;
 }
 
+#define FILE_PORT(port) (port)
+#define ELECTION_PORT(port) ((port)+1)
+#define COMMUNICATION_PORT(port) ((port)+2)
+#define HEARTBEAT_PORT(port) ((port)+3)
+
 int backup_init(arguments_t arguments) {
-    // std::cerr << "[DEBUG] Starting backup" << std::endl;
+    uint32_t primary_ip;
+    uint16_t primary_port;
+
+    // [On startup]
+    // 0. Start state
     state_init(arguments.ip, arguments.port, backup);
 
-    // std::cerr << "[DEBUG] Starting election thread" << std::endl;
+    // 1. Start listeners
     el_start_thread();
-    // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
     coms_thread_init();
 
-    server_t primary_server = {
-        .ip = arguments.next_server_ip,
-        .port = arguments.next_server_port,
-    };
-
-    LOG_SYNC(std::cerr << "Primary server: " << primary_server << std::endl);
-
-    // std::cerr << "[DEBUG] Calling handshake" << std::endl;
-    if (!initial_handshake(primary_server)) {
-        LOG_SYNC(std::cerr << "aaaa1" << std::endl);
-    }
-
-    if (!heartbeat_handshake(primary_server))
+    // 2. Connect to other server and get primary
     {
-        LOG_SYNC(std::cerr << "bbbb1" << std::endl);
+        // Variables
+        connection_t *conn;
+        request_t request;
+        response_t response;
+
+        // Execution
+        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to other server (" << std::hex << arguments.next_server_ip << std::dec << ":" << arguments.next_server_port << ")" << std::endl);
+        connect_to_server(arguments.next_server_ip, COMMUNICATION_PORT(arguments.next_server_port), &conn);
+
+        request = { .type = req_hello };
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [1]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        if (response.status != STATUS_OK) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [2]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        request = { .type = req_get_primary };
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [3]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        if (response.status != STATUS_OK) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [4]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        primary_ip = response.ip;
+        primary_port = response.port;
+
+        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Primary is " << std::hex << primary_ip << std::dec << ":" << primary_port << std::endl);
+
+        close(conn->sockfd);
+        //conn_free(conn);
     }
-    
 
-    sleep(2);
+    // 3. Connect to primary with a long-lived connection and fetch metadata
+    connection_t *conn;
+    {
+        // Variables
+        request_t request;
+        response_t response;
 
-    acquire_metadata();
-    release_metadata();
+        server_t *primary_server = get_primary_server();
 
-    //initiateElection();
+        // Execution
+        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to primary (" << std::hex << primary_ip << std::dec << ":" << primary_port << ")" << std::endl);
+        connect_to_server(primary_ip, COMMUNICATION_PORT(primary_port), &conn);
 
+        request = { .type = req_hello };
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [1]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
 
+        if (response.status != STATUS_OK) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [2]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        request = { .type = req_register };
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [3]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        if (response.status != STATUS_OK) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [4]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        request = { .type = req_fetch_metadata };
+        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [5]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        if (response.status != STATUS_OK) {
+            set_should_stop(true);
+            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [6]" << std::endl);
+            close(conn->sockfd);
+            conn_free(conn);
+            init_done();
+            return EXIT_FAILURE;
+        }
+
+        metadata_t *metadata = acquire_metadata();
+        metadata->servers = response.metadata.servers;
+        release_metadata();
+    }
+
+    init_done();
+
+    // 4. Start heartbeat
     heartbeat_thread_init();
-    // std::cerr << "[DEBUG] Waiting" << std::endl;
+
     while (true) {}
 
     return EXIT_FAILURE;

@@ -11,6 +11,7 @@ typedef struct {
     sem_t metadata_mutex;
     metadata_t metadata;
 
+    sem_t should_stop_mutex;
     bool should_stop;
 
     sem_t logging_mutex;
