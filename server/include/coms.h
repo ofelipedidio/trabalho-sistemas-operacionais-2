@@ -7,6 +7,7 @@
 
 #include "connection.h"
 #include "election.h"
+#include <cstdint>
 
 typedef struct {
     connection_t inbound_connection;
@@ -17,6 +18,7 @@ typedef struct {
 #define STATUS_INVALID_REQUEST_TYPE 10
 #define STATUS_NOT_IMPLEMENTED 11
 #define STATUS_TRANSACTION_ERROR 12
+#define STATUS_INTERNAL_ERROR 13
 
 typedef enum {
     /*
@@ -47,6 +49,10 @@ typedef enum {
      * Exchange startup information
      */
     req_register,
+
+    req_get_primary,
+
+    req_update_metadata,
 } request_type_t;
 
 typedef struct {
@@ -56,7 +62,11 @@ typedef struct {
 typedef struct {
     uint16_t status;
     metadata_t metadata;
+    uint32_t ip;
+    uint16_t port;
 } response_t;
+
+bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection);
 
 bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_t request, response_t *out_response);
 
@@ -69,5 +79,3 @@ void *heartbeat_writer_thread(void *args);
 bool heartbeat_thread_init();
 
 bool primary_heartbeat_thread_init();
-
-bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection);

@@ -16,16 +16,48 @@ void state_init(uint32_t ip, uint16_t port, server_type_t type) {
     state.should_stop = false;
 
     sem_init(&state.metadata_mutex, 0, 1);
+    sem_init(&state.should_stop_mutex, 0, 1);
     sem_init(&state.logging_mutex, 0, 1);
     sem_init(&state.heartbeatSocket_mutex, 0, 1);
     sem_init(&state.heartbeatvector_mutex, 0, 1);
+    sem_init(&state.deferred_requests_mutex, 0, 1);
+
+    // This will be set to 1 when the program finished initialization
+    sem_init(&state.initialization_lock, 0, 0);
+}
+
+void wait_for_init() {
+    //sem_wait(&state.initialization_lock);
+    //sem_post(&state.initialization_lock);
+}
+
+void init_done() {
+    sem_post(&state.initialization_lock);
+}
+
+std::vector<request_t> *acquire_deferred_requests() {
+    sem_wait(&state.deferred_requests_mutex);
+    return &state.deferred_requests;
+}
+
+void release_deferred_requests() {
+    sem_post(&state.deferred_requests_mutex);
 }
 
 /*************\
 * Should stop *
 \*************/
 bool should_stop() {
-    return state.should_stop;
+    sem_wait(&state.should_stop_mutex);
+    bool should_stop = state.should_stop;
+    sem_post(&state.should_stop_mutex);
+    return should_stop;
+}
+
+void set_should_stop(bool value) {
+    sem_wait(&state.should_stop_mutex);
+    state.should_stop = value;
+    sem_post(&state.should_stop_mutex);
 }
 
 /****************\
@@ -50,19 +82,21 @@ server_t *get_primary_server() {
 * Metadata *
 \**********/
 metadata_t *acquire_metadata() {
-    std::cerr << "[DEBUG] [State] Acquiring metadata" << std::endl;
+    LOG_SYNC(std::cerr << "[DEBUG] [State] Acquiring metadata" << std::endl);
     sem_wait(&state.metadata_mutex);
-    std::cerr << "[DEBUG] [State] Metadata acquired" << std::endl;
+    LOG_SYNC(std::cerr << "[DEBUG] [State] Metadata acquired" << std::endl);
     return &state.metadata;
 }
 
 void release_metadata() {
+    acquire_logging_mutex();
     std::cerr << "(metadata) [ ";
     for (auto server : state.metadata.servers) {
         printServer(std::cerr, server);
         std::cerr << ", ";
     }
     std::cerr << "]" << std::endl;
+    release_logging_mutex();
 
     sem_post(&state.metadata_mutex);
 }

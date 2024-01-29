@@ -38,13 +38,54 @@
         return false; \
     }
 
+bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection) {
+    connection_t *conn;
+    {
+        // Setup
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        server_addr.sin_addr = { ip };
+        bzero(&server_addr.sin_zero, 8);
+
+        // Create socket
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd == -1) {
+            LOG_SYNC(std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl);
+            return false;
+        }
+
+        // Connect
+        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
+        if (connect_response < 0) {
+            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
+            close(sockfd);
+            return false;
+        }
+
+        add_connection(sockfd);
+
+        // Create connection object
+        // INTERNAL: the client's fields are set to the server's fields on purpose
+        // TODO - Didio: figure out how to get client's IP and port
+        conn = conn_new(
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                server_addr.sin_addr,
+                ntohs(server_addr.sin_port),
+                sockfd);
+    }
+    *out_connection = conn;
+
+    return true;
+}
+
 bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_t request, response_t *out_response) {
     server_t *current_server = get_current_server();
 
     uint64_t metadata_length;
     uint64_t primary_index;
     server_t in_server;
-
 
     switch (request.type) {
         case req_transaction_start:
@@ -62,6 +103,12 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
         case req_register:
             coms_exec(write_u8(*writer, 16));
             coms_exec(write_u16(*writer, current_server->port));
+            break;
+        case req_get_primary:
+            coms_exec(write_u8(*writer, 17));
+            break;
+        case req_update_metadata:
+            coms_exec(write_u8(*writer, 18));
             break;
     }
 
@@ -98,13 +145,26 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
         case req_register:
             coms_exec(read_u16(*reader, &out_response->status));
             break;
+
+        case req_get_primary:
+            coms_exec(read_u16(*reader, &out_response->status));
+            if (out_response->status != STATUS_OK) {
+                return false;
+            }
+            coms_exec(read_u32(*reader, &out_response->ip));
+            coms_exec(read_u16(*reader, &out_response->port));
+            break;
+
+        case req_update_metadata:
+            coms_exec(read_u16(*reader, &out_response->status));
+            break;
     }
 
     return true;
 }
 
-bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t server) {
-    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request" << std::endl);
+bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *server) {
+    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request from " << *server << std::endl);
 
     uint8_t request_type;
     coms_exec(read_u8(*reader, &request_type));
@@ -162,14 +222,64 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t server
             // req_register
             {
                 LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_register)" << std::endl);
-                coms_exec(read_u16(*reader, &server.port));
+                coms_exec(read_u16(*reader, &server->port));
                 {
                     metadata_t *metadata = acquire_metadata();
-                    metadata->servers.push_back(server);
+                    metadata->servers.push_back(*server);
                     release_metadata();
                 }
                 coms_exec(write_u16(*writer, STATUS_OK));
                 coms_exec(flush(*writer));
+
+                metadata_t metadata_copy;
+                {
+                    metadata_t *metadata = acquire_metadata();
+                    metadata_copy.servers = metadata->servers;
+                    release_metadata();
+                }
+
+                // Connect to every server that isn't involved in this request and
+                // request that they update their metadatas
+                for (auto s : metadata_copy.servers) {
+                    if (s.server_type != primary && !server_eq(&s, server)) {
+                        LOG_SYNC(std::cerr << "Deferring task to " << s << std::endl);
+                        // Connect to server
+                        connection_t *conn;
+                        coms_exec(connect_to_server(s.ip, s.port+2, &conn));
+
+                        // Request metadata update
+                        request_t req = {.type = req_update_metadata };
+                        response_t res;
+                        coms_exec(_coms_sync_execute_request(&conn->reader, &conn->writer, req, &res));
+                        close (conn->sockfd);
+                        conn_free(conn);
+                    }
+                }
+            }
+            break;
+
+        case 17:
+            // req_get_primary
+            {
+                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_get_primary)" << std::endl);
+                server_t *primary_server = get_primary_server();
+                coms_exec(write_u16(*writer, STATUS_OK));
+                coms_exec(write_u32(*writer, primary_server->ip));
+                coms_exec(write_u16(*writer, primary_server->port));
+                coms_exec(flush(*writer));
+            }
+            break;
+
+        case 18:
+            // req_update_metadata
+            {
+                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_update_metadata)" << std::endl);
+                coms_exec(write_u16(*writer, STATUS_OK));
+                coms_exec(flush(*writer));
+
+                std::vector<request_t> *deferred_requests = acquire_deferred_requests();
+                deferred_requests->push_back({ .type = req_update_metadata });
+                release_deferred_requests();
             }
             break;
 
@@ -180,7 +290,7 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t server
             LOG_SYNC(std::cerr << "[DEBUG] [COMMS] Done" << std::endl);
             return false;
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [COMMS] Done" << std::endl);
+    LOG_SYNC(std::cerr << "[DEBUG] [COMMS] Done handling request from " << *server << std::endl);
 
     return true;
 }
@@ -188,14 +298,15 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t server
 /*
  * Calles `coms_handle_request` in a loop until the connection fails
  */
-void coms_handle_connection(connection_t *connection, server_t server) {
-    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Received a connection from " << server << std::endl);
+void coms_handle_connection(connection_t *connection, server_t *server) {
+    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Received a connection from " << *server << std::endl);
 
     bool error_occurred = false;
 
     while (!(error_occurred || should_stop())) {
         // std::cerr << "[DEBUG] [Coms Thread] Handling message (e = " << (error_occurred ? "true" : "false") << ")" << std::endl;
         if (!coms_handle_request(&connection->reader, &connection->writer, server)) {
+            LOG_SYNC(std::cerr << "[DEBUG] [COMS] Failed to handle request" << std::endl);
             error_occurred = true;
             break;
         }
@@ -484,7 +595,9 @@ void *coms_listener_thread(void *args) {
     // Configure socket to listen
     {
         server_t *current_server = get_current_server();
+        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] current_server = " << *current_server << std::endl);
 
+        // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
         // Initialize the socket
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
@@ -499,7 +612,7 @@ void *coms_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
+        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
             LOG_SYNC(std::cerr << "ERROR: [COMMUNICATIONS] Call to bind returned -1 (errno = " << errno_print(errno) << ")" << std::endl);
             exit(1);
@@ -520,7 +633,53 @@ void *coms_listener_thread(void *args) {
     {
         client_length = sizeof(struct sockaddr_in);
 
+        wait_for_init();
+
         while (!should_stop()) {
+            LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = HANDLING_DEFERRED_REQUESTS" << std::endl;);
+            std::vector<request_t> *deferred_requests = acquire_deferred_requests();
+            for (auto req : *deferred_requests) {
+                switch (req.type) {
+                    case req_update_metadata:
+                        LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Handling req_update_metadata" << std::endl);
+                        {
+                            server_t *primary_server = get_primary_server();
+                            connection_t *conn;
+                            if (!connect_to_server(primary_server->ip, primary_server->port+2, &conn)) {
+                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Could not connect to primary server" << std::endl);
+                                continue;
+                            }
+                            request_t request = { .type = req_fetch_metadata };
+                            response_t response;
+                            if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
+                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Could not perform request with primary server" << std::endl);
+                                close(conn->sockfd);
+                                conn_free(conn);
+                                continue;
+                            }
+
+                            if (response.status != STATUS_OK) {
+                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Request to primary server failed (status = " << response.status << ")" << std::endl);
+                                close(conn->sockfd);
+                                conn_free(conn);
+                                continue;
+                            }
+
+                            metadata_t *metadata = acquire_metadata();
+                            metadata->servers = response.metadata.servers;
+                            release_metadata();
+
+                            close(conn->sockfd);
+                            conn_free(conn);
+                        }
+                        break;
+                    default:
+                        // Ignoring the rest of the request types, as they shouldn't ever be deferred
+                        break;
+                }
+            }
+            release_deferred_requests();
+
             LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = WAITING_FOR_CLIENT" << std::endl;);
 
             // Accept connecting clients and break on 
@@ -547,7 +706,7 @@ void *coms_listener_thread(void *args) {
                 .server_type = backup,
             };
 
-            coms_handle_connection(connection, server);
+            coms_handle_connection(connection, &server);
 
             LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = CLIENT_HANDLED" << std::endl;);
         }
@@ -558,7 +717,7 @@ void *coms_listener_thread(void *args) {
         LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = DONE" << std::endl;);
 
         close(listen_sockfd);
-        pthread_exit(NULL);
+        exit(EXIT_FAILURE);
         return NULL; 
     }
 }
@@ -577,6 +736,7 @@ void *heartbeat_listener_thread(void *args) {
 
     {
         server_t *current_server = get_current_server();
+        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] current_server = " << *current_server << std::endl);
 
         // Initialize the socket
         // std::cerr << "[DEBUG] [Coms] Creating socket" << std::endl;
@@ -593,6 +753,7 @@ void *heartbeat_listener_thread(void *args) {
         bzero(&(server_address.sin_zero), 8);
 
         // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
+        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
             LOG_SYNC(std::cerr << "bbbbbbbbbbbbbbbbbbbbb2" << std::endl);
             exit(1);
@@ -610,6 +771,8 @@ void *heartbeat_listener_thread(void *args) {
     int connection_sockfd;
     struct sockaddr_in client_address;
     socklen_t client_length;
+
+    wait_for_init();
 
     // Listen for clients
     while (!should_stop()) {
@@ -636,7 +799,7 @@ void *heartbeat_listener_thread(void *args) {
     }
 
     close(listen_sockfd);
-    pthread_exit(NULL);
+    exit(EXIT_FAILURE);
     return NULL; 
 }
 
@@ -645,69 +808,37 @@ void *heartbeat_writer_thread(void *args) {
     {
         connection_t *conn;
         {
-
             server_t *primary_server = get_primary_server();
             server_t *current_server = get_current_server();
 
             if (server_eq(primary_server,current_server)){
                 return NULL;
             }
-            // Setup
-            // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
-            struct sockaddr_in server_addr;
-            server_addr.sin_family = AF_INET;
-            server_addr.sin_port = htons((*primary_server).port + 3);
-            server_addr.sin_addr = { (*primary_server).ip };
-            bzero(&server_addr.sin_zero, 8);
 
-            // Create socket
-            // std::cerr << "[DEBUG] Creating socket" << std::endl;
-            int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-            if (sockfd == -1) {
-                std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl;
-                return NULL;
-            }
-
-            // Connect
-            // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
-            int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-            if (connect_response < 0) {
-                std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
-                close(sockfd);
-                return NULL;
+            if (!connect_to_server(primary_server->ip, primary_server->port+3, &conn)) {
+                LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] connect_to_server failed" << std::endl);
+                exit(EXIT_FAILURE);
             }
 
             int optval = 1;
             socklen_t optlen = sizeof(optval);
-            if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
-                perror("setsockopt()");
-                close(sockfd);
+            if(setsockopt(conn->sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+                perror("[DEBUG] [HEARTBEAT] setsockopt failed");
+                close(conn->sockfd);
                 exit(EXIT_FAILURE);
             }
 
-            if(getsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
-                perror("getsockopt()");
-                close(sockfd);
+            if(getsockopt(conn->sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
+                perror("[DEBUG] [HEARTBEAT] getsockopt failed");
+                close(conn->sockfd);
                 exit(EXIT_FAILURE);
             }
+
             std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
-
-            add_connection(sockfd);
-
-            // Create connection object
-            // INTERNAL: the client's fields are set to the server's fields on purpose
-            // TODO - Didio: figure out how to get client's IP and port
-            // std::cerr << "[DEBUG] Connecting connection object" << std::endl;
-            conn = conn_new(
-                    server_addr.sin_addr,
-                    ntohs(server_addr.sin_port),
-                    server_addr.sin_addr,
-                    ntohs(server_addr.sin_port),
-                    sockfd);
 
             set_heartbeat_socket(conn);
         }
-        
+
         while (!should_stop())
         {
             sleep(2);
@@ -716,10 +847,9 @@ void *heartbeat_writer_thread(void *args) {
                 initiateElection();
                 break;
             }
-            //std::cerr << "[Heartbeat] heartbeat sent from backup" << std::endl;
         }    
     }
-    
+
     return NULL;
 }
 
