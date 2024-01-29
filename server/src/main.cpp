@@ -17,6 +17,7 @@
 #include "../include/client.h"
 #include "../include/election.h"
 #include "../include/coms.h"
+#include "../include/heartbeat.h"
 
 typedef struct {
     /*******************************************************\
