@@ -206,7 +206,7 @@ namespace Network {
 
         __internal::task_queue = AsyncQueue::async_queue<network_task_t>();
         __internal::done_queue = AsyncQueue::async_queue<network_task_t>();
-
+        
         /*
          * Create socket and connect to server
          */
@@ -236,9 +236,9 @@ namespace Network {
                     ntohs(server_addr.sin_port),
                     sockfd);
 
-            DEBUG(std::cerr << "[Network] Performing handshake" << std::endl;)
+            DEBUG(std::cerr << "[Network] Performing handshake" << std::endl);
             uint8_t status;
-            if (!request_handshake(connection, App::get_username(), &status)) {
+            if (!request_handshake(connection, App::get_username(), false, &status)) {
                 std::cerr << "ERROR: [Network init] Failed to handshake" << std::endl;
                 return false;
             }

@@ -48,6 +48,8 @@ int primary_init(arguments_t arguments) {
     LOG_SYNC(std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl);
     primary_heartbeat_thread_init();
 
+    tcp_dump_1("0.0.0.0", arguments.port);
+
     // std::cerr << "[DEBUG] Idle" << std::endl;
     while (true) { }
 
@@ -208,6 +210,7 @@ int backup_init(arguments_t arguments) {
         conn_free(conn);
     }
 
+
     init_done();
 
     // 4. Start heartbeat
@@ -248,13 +251,16 @@ bool check_port(char *str, uint16_t *port) {
 int main(int argc, char **argv) {
     arguments_t arguments;
 
+    signal(SIGPIPE, sigpipe_handler);
+    signal(SIGINT, sigint_handler);
+
+    client_init();
     if (argc < 2) {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    signal(SIGPIPE, sigpipe_handler);
 
     if (strcmp(argv[1], "p") == 0) {
         if (argc != 4) {

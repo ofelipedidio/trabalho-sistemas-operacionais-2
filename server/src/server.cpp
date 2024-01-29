@@ -26,6 +26,8 @@
 #include "../include/protocol.h"
 #include "../include/file_manager.h"
 #include "../include/closeable.h"
+#include "../include/state.h"
+#include "../include/coms.h"
 
 #define BUF_SIZE 1024
 #define LINE_CHAR_COUNT 32
@@ -33,7 +35,8 @@
 inline client_t *connect_to_client(connection_t *connection) {
     // Perform handshake
     std::string username;
-    if (!handshake(connection, &username)) {
+    bool from_primary;
+    if (!handshake(connection, &username,&from_primary)) {
         close(connection->sockfd);
         conn_free(connection);
         return nullptr;
@@ -42,7 +45,7 @@ inline client_t *connect_to_client(connection_t *connection) {
     std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Identified as `" << username << "`" << std::endl;
 
     // Create client
-    client_t *client = client_new(username, connection);
+    client_t *client = client_new(username, connection,from_primary);
     if (client == nullptr) {
         std::cout << "[LISTEN] (ID: " << connection->connection_id << ") Connection refused" << std::endl;
         respond_handshake_fail(connection);
@@ -78,6 +81,9 @@ void *client_handler_thread(void *_arg) {
     // Variable initialization
     client_dir = "sync_dir_" + client->username;
     running = true;
+    uint8_t status;
+    metadata_t metadatacopy;
+    metadata_t* backupconnections;
 
     // Server loop
     while (running) {
@@ -105,6 +111,39 @@ void *client_handler_thread(void *_arg) {
                 break;
             case PACKET_TYPE_UPLOAD:
                 std::cerr << "[" << client->connection->connection_id << "] Received a upload request" << std::endl;
+                if(get_current_server()->server_type == primary){
+                    backupconnections = acquire_metadata();
+                    metadatacopy = (*backupconnections);
+                    release_metadata();
+                    for (auto backup_server : metadatacopy.servers)
+                    {
+                        if (backup_server.server_type == primary)
+                        {
+                            continue;
+                        }
+                        std::cerr << "Upload request to: " << backup_server << std::endl;
+                        connection_t *connbackup;
+                        if(!connect_to_server(backup_server.ip,backup_server.port,&connbackup)){
+                            //TODO handle this BS
+                        }
+
+                        if(!request_handshake(connbackup,client->username,true,&status) || status != STATUS_SUCCESS){
+                            //TODO handle this BS
+                        }
+
+                        if (!request_upload(connbackup, filename, bytes, length, &status)) {
+                            // TODO: handle error
+                        }
+                        if (status != STATUS_SUCCESS) {
+                            // TODO: rollback
+                            if (!respond_upload_fail(client->connection)) {
+                                // TODO: handle error
+                            }
+                        }
+                        close(connbackup->sockfd);
+                    }                
+                }
+
                 if (netfs::write_file(client_dir + "/" + filename, bytes, length)) {
                     std::cerr << "[" << client->connection->connection_id << "] Resolved a upload request" << std::endl;
                     if (!respond_upload_success(client->connection)) {
@@ -121,6 +160,40 @@ void *client_handler_thread(void *_arg) {
                 break;
             case PACKET_TYPE_DELETE:
                 std::cerr << "[" << client->connection->connection_id << "] Received a delete request" << std::endl;
+                
+                if(get_current_server()->server_type == primary){
+                    backupconnections = acquire_metadata();
+                    metadatacopy = (*backupconnections);
+                    release_metadata();
+                    for (auto backup_server : metadatacopy.servers)
+                    {
+                        if (backup_server.server_type == primary)
+                        {
+                            continue;
+                        }
+                        std::cerr << "Delete request to: " << backup_server << std::endl;
+                        connection_t *connbackup;
+                        if(!connect_to_server(backup_server.ip,backup_server.port,&connbackup)){
+                            //TODO handle this BS
+                        }
+
+                        if(!request_handshake(connbackup,client->username,true,&status) || status != STATUS_SUCCESS){
+                            //TODO handle this BS
+                        }
+
+                        if (!request_delete(connbackup, filename, &status)) {
+                            // TODO: handle error
+                        }
+                        if (status != STATUS_SUCCESS) {
+                            // TODO: rollback
+                            if (!respond_upload_fail(client->connection)) {
+                                // TODO: handle error
+                            }
+                        }
+                        close(connbackup->sockfd);
+                    }
+                }
+
                 if (netfs::delete_file(client_dir + "/" + filename)) {
                     std::cerr << "[" << client->connection->connection_id << "] Resolved a delete request" << std::endl;
                     if (!respond_delete_success(client->connection)) {

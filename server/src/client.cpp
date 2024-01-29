@@ -58,7 +58,7 @@ bool can_connect(std::string username) {
 
     int count = 0;
     for (std::size_t i = 0; i < clients.size(); i++) {
-        if (clients[i]->username == username) {
+        if (clients[i]->username == username && !clients[i]->from_primary) {
             count++;
         }
     }
@@ -67,12 +67,12 @@ bool can_connect(std::string username) {
     return count < MAX_ACTIVE_CONNECTIONS;
 }
 
-client_t *client_new(std::string username, connection_t *connection) {
+client_t *client_new(std::string username, connection_t *connection,bool from_primary) {
     sem_wait(&global_mutex);
 
     // Check wether this client has exceded the maximum 
     // allowed limit of connections per client
-    if (!can_connect(username)) {
+    if (!from_primary && !can_connect(username)) {
         sem_post(&global_mutex);
         return nullptr;
     }
@@ -93,6 +93,7 @@ client_t *client_new(std::string username, connection_t *connection) {
     client->connection = connection;
     client->active = true;
     client->pending_events = std::queue<file_event_t>();
+    client->from_primary = from_primary;
     sem_init(&client->mutex, 0, 1);
 
     // Insert the new client into the client list

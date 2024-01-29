@@ -1,4 +1,4 @@
-// #define DEBUG_ENABLED 1
+#define DEBUG_ENABLED 1
 
 #ifdef DEBUG
 #define DEBUG(x) x

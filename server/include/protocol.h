@@ -27,7 +27,7 @@ typedef struct {
 
 bool read_header(connection_t *connection, packet_header_t *header);
 
-bool handshake(connection_t *connection, std::string *username);
+bool handshake(connection_t *connection, std::string *username,bool* from_primary);
 
 bool receive_packet(connection_t *connection, packet_header_t *header, std::string *filename, uint64_t *length, uint8_t **bytes);
 
@@ -54,5 +54,20 @@ bool respond_list_files_fail(connection_t *connection);
 bool respond_update_some(connection_t *connection, file_event_t event);
 
 bool respond_update_none(connection_t *connection);
+
+bool request_handshake(connection_t *connection, std::string username, bool from_primary, uint8_t *out_status);
+
+bool request_download(connection_t *connection, std::string filename, uint8_t *out_status, uint8_t **out_buf, uint64_t *out_length);
+
+bool request_upload(connection_t *connection, std::string filename, uint8_t *buffer, uint64_t length, uint8_t *out_status);
+
+bool request_delete(connection_t *connection, std::string filename, uint8_t *out_status);
+
+bool request_list_files(connection_t *connection, uint8_t *out_status, std::vector<netfs::file_description_t> *out_files);
+
+bool request_exit(connection_t *connection);
+
+bool request_update(connection_t *connection, uint8_t *out_status, file_event_t *out_event);
+
 
 #endif // !PROTOCOL
