@@ -22,20 +22,6 @@ typedef struct {
 
 typedef enum {
     /*
-     * Starts transaction
-     *
-     * If a transaction has already been initiated, returns STATUS_TRANSACTION_ERROR
-     */
-    req_transaction_start,
-    
-    /*
-     * End transaction
-     *
-     * If a transaction has not already been initiated, returns STATUS_TRANSACTION_ERROR
-     */
-    req_transaction_end,
-    
-    /*
      * Request metadata
      */
     req_fetch_metadata,

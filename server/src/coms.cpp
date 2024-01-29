@@ -33,8 +33,14 @@
 #include "../include/state.h"
 
 
-#define coms_exec(expr) \
+#define coms_exec_s(expr) \
     if (!expr) { \
+        LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_SERVER] coms_exec failed (coms.cpp, line " << __LINE__ << ")\033[0m" << std::endl); \
+        return false; \
+    }
+#define coms_exec_c(expr) \
+    if (!expr) { \
+        LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_CLIENT] coms_exec failed (coms.cpp, line " << __LINE__ << ")\033[0m" << std::endl); \
         return false; \
     }
 
@@ -51,14 +57,14 @@ bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [CONNECT_TO_SERVER] Call to 'socket' failed (connecting to " << std::hex << ip << std::dec << ":" << port << ")\033[0m"; perror(NULL));
             return false;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [CONNECT_TO_SERVER] Call to 'connect' failed (connecting to " << std::hex << ip << std::dec << ":" << port << ")\033[0m"; perror(NULL));
             close(sockfd);
             return false;
         }
@@ -88,50 +94,36 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
     server_t in_server;
 
     switch (request.type) {
-        case req_transaction_start:
-            coms_exec(write_u8(*writer, 12));
-            break;
-        case req_transaction_end:
-            coms_exec(write_u8(*writer, 13));
-            break;
         case req_fetch_metadata:
-            coms_exec(write_u8(*writer, 14));
+            coms_exec_c(write_u8(*writer, 14));
             break;
         case req_hello:
-            coms_exec(write_u8(*writer, 15));
+            coms_exec_c(write_u8(*writer, 15));
             break;
         case req_register:
-            coms_exec(write_u8(*writer, 16));
-            coms_exec(write_u16(*writer, current_server->port));
+            coms_exec_c(write_u8(*writer, 16));
+            coms_exec_c(write_u16(*writer, current_server->port));
             break;
         case req_get_primary:
-            coms_exec(write_u8(*writer, 17));
+            coms_exec_c(write_u8(*writer, 17));
             break;
         case req_update_metadata:
-            coms_exec(write_u8(*writer, 18));
+            coms_exec_c(write_u8(*writer, 18));
             break;
     }
 
-    coms_exec(flush(*writer));
+    coms_exec_c(flush(*writer));
 
     switch (request.type) {
-        case req_transaction_start:
-            coms_exec(read_u16(*reader, &out_response->status));
-            break;
-
-        case req_transaction_end:
-            coms_exec(read_u16(*reader, &out_response->status));
-            break;
-
         case req_fetch_metadata:
             out_response->metadata = { .servers = std::vector<server_t>() };
-            coms_exec(read_u16(*reader, &out_response->status));
+            coms_exec_c(read_u16(*reader, &out_response->status));
             if (out_response->status == STATUS_OK) {
-                coms_exec(read_u64(*reader, &metadata_length));
-                coms_exec(read_u64(*reader, &primary_index));
+                coms_exec_c(read_u64(*reader, &metadata_length));
+                coms_exec_c(read_u64(*reader, &primary_index));
                 for (uint64_t i = 0; i < metadata_length; i++) {
-                    coms_exec(read_u32(*reader, &in_server.ip));
-                    coms_exec(read_u16(*reader, &in_server.port));
+                    coms_exec_c(read_u32(*reader, &in_server.ip));
+                    coms_exec_c(read_u16(*reader, &in_server.port));
                     in_server.server_type = (i == primary_index) ? primary : backup;
                     out_response->metadata.servers.push_back(in_server);
                 }
@@ -139,24 +131,24 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
             break;
 
         case req_hello:
-            coms_exec(read_u16(*reader, &out_response->status));
+            coms_exec_c(read_u16(*reader, &out_response->status));
             break;
 
         case req_register:
-            coms_exec(read_u16(*reader, &out_response->status));
+            coms_exec_c(read_u16(*reader, &out_response->status));
             break;
 
         case req_get_primary:
-            coms_exec(read_u16(*reader, &out_response->status));
+            coms_exec_c(read_u16(*reader, &out_response->status));
             if (out_response->status != STATUS_OK) {
                 return false;
             }
-            coms_exec(read_u32(*reader, &out_response->ip));
-            coms_exec(read_u16(*reader, &out_response->port));
+            coms_exec_c(read_u32(*reader, &out_response->ip));
+            coms_exec_c(read_u16(*reader, &out_response->port));
             break;
 
         case req_update_metadata:
-            coms_exec(read_u16(*reader, &out_response->status));
+            coms_exec_c(read_u16(*reader, &out_response->status));
             break;
     }
 
@@ -164,31 +156,16 @@ bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_
 }
 
 bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *server) {
-    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request from " << *server << std::endl);
-
     uint8_t request_type;
-    coms_exec(read_u8(*reader, &request_type));
+    if (!read_u8(*reader, &request_type)) {
+        return false;
+    }
     switch (request_type) {
-
-        case 12:
-            // req_transaction_start
-            LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_transaction_start)" << std::endl);
-            coms_exec(write_u16(*writer, STATUS_NOT_IMPLEMENTED));
-            coms_exec(flush(*writer));
-            break;
-
-        case 13:
-            // req_transaction_end
-            LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_transaction_end)" << std::endl);
-            coms_exec(write_u16(*writer, STATUS_NOT_IMPLEMENTED));
-            coms_exec(flush(*writer));
-            break;
 
         case 14:
             // req_fetch_metadata
             {
-                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_fetch_metadata)" << std::endl);
-                coms_exec(write_u16(*writer, STATUS_OK));
+                coms_exec_s(write_u16(*writer, STATUS_OK));
                 metadata_t *metadata = acquire_metadata();
                 uint64_t length = metadata->servers.size();
                 uint64_t primary_index = length;
@@ -198,59 +175,53 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *serve
                         break;
                     }
                 }
-                coms_exec(write_u64(*writer, length));
-                coms_exec(write_u64(*writer, primary_index));
+                coms_exec_s(write_u64(*writer, length));
+                coms_exec_s(write_u64(*writer, primary_index));
                 for (uint64_t i = 0; i < length; i++) {
-                    coms_exec(write_u32(*writer, metadata->servers[i].ip));
-                    coms_exec(write_u16(*writer, metadata->servers[i].port));
+                    coms_exec_s(write_u32(*writer, metadata->servers[i].ip));
+                    coms_exec_s(write_u16(*writer, metadata->servers[i].port));
                 }
                 release_metadata();
-                coms_exec(flush(*writer));
+                coms_exec_s(flush(*writer));
             }
             break;
 
         case 15:
             // req_hello
             {
-                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_hello)" << std::endl);
-                coms_exec(write_u16(*writer, STATUS_OK));
-                coms_exec(flush(*writer));
+                coms_exec_s(write_u16(*writer, STATUS_OK));
+                coms_exec_s(flush(*writer));
             }
             break;
 
         case 16:
             // req_register
             {
-                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_register)" << std::endl);
-                coms_exec(read_u16(*reader, &server->port));
+                coms_exec_s(read_u16(*reader, &server->port));
                 {
                     metadata_t *metadata = acquire_metadata();
                     metadata->servers.push_back(*server);
                     release_metadata();
                 }
-                coms_exec(write_u16(*writer, STATUS_OK));
-                coms_exec(flush(*writer));
-
+                coms_exec_s(write_u16(*writer, STATUS_OK));
+                coms_exec_s(flush(*writer));
                 metadata_t metadata_copy;
                 {
                     metadata_t *metadata = acquire_metadata();
                     metadata_copy.servers = metadata->servers;
                     release_metadata();
                 }
-
                 // Connect to every server that isn't involved in this request and
                 // request that they update their metadatas
                 for (auto s : metadata_copy.servers) {
                     if (s.server_type != primary && !server_eq(&s, server)) {
-                        LOG_SYNC(std::cerr << "Deferring task to " << s << std::endl);
                         // Connect to server
                         connection_t *conn;
-                        coms_exec(connect_to_server(s.ip, s.port+2, &conn));
-
+                        coms_exec_s(connect_to_server(s.ip, s.port+2, &conn));
                         // Request metadata update
                         request_t req = {.type = req_update_metadata };
                         response_t res;
-                        coms_exec(_coms_sync_execute_request(&conn->reader, &conn->writer, req, &res));
+                        coms_exec_s(_coms_sync_execute_request(&conn->reader, &conn->writer, req, &res));
                         close (conn->sockfd);
                         conn_free(conn);
                     }
@@ -261,22 +232,19 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *serve
         case 17:
             // req_get_primary
             {
-                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_get_primary)" << std::endl);
                 server_t *primary_server = get_primary_server();
-                coms_exec(write_u16(*writer, STATUS_OK));
-                coms_exec(write_u32(*writer, primary_server->ip));
-                coms_exec(write_u16(*writer, primary_server->port));
-                coms_exec(flush(*writer));
+                coms_exec_s(write_u16(*writer, STATUS_OK));
+                coms_exec_s(write_u32(*writer, primary_server->ip));
+                coms_exec_s(write_u16(*writer, primary_server->port));
+                coms_exec_s(flush(*writer));
             }
             break;
 
         case 18:
             // req_update_metadata
             {
-                LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (req_update_metadata)" << std::endl);
-                coms_exec(write_u16(*writer, STATUS_OK));
-                coms_exec(flush(*writer));
-
+                coms_exec_s(write_u16(*writer, STATUS_OK));
+                coms_exec_s(flush(*writer));
                 std::vector<request_t> *deferred_requests = acquire_deferred_requests();
                 deferred_requests->push_back({ .type = req_update_metadata });
                 release_deferred_requests();
@@ -284,13 +252,12 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *serve
             break;
 
         default:
-            LOG_SYNC(std::cerr << "[DEBUG] [COMS] Handling request (invalid signature [" << ((int) request_type) << "])" << std::endl);
-            coms_exec(write_u16(*writer, STATUS_INVALID_REQUEST_TYPE));
-            coms_exec(flush(*writer));
-            LOG_SYNC(std::cerr << "[DEBUG] [COMMS] Done" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_SERVER] Handling request (invalid signature [" << ((int) request_type) << "])\033[0m" << std::endl);
+            coms_exec_s(write_u16(*writer, STATUS_INVALID_REQUEST_TYPE));
+            coms_exec_s(flush(*writer));
+            LOG_SYNC(std::cerr << "[DEBUG] [COMMS_SERVER] Done" << std::endl);
             return false;
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [COMMS] Done handling request from " << *server << std::endl);
 
     return true;
 }
@@ -299,14 +266,12 @@ bool coms_handle_request(tcp_reader *reader, tcp_writer *writer, server_t *serve
  * Calles `coms_handle_request` in a loop until the connection fails
  */
 void coms_handle_connection(connection_t *connection, server_t *server) {
-    LOG_SYNC(std::cerr << "[DEBUG] [COMS] Received a connection from " << *server << std::endl);
-
     bool error_occurred = false;
 
     while (!(error_occurred || should_stop())) {
         // std::cerr << "[DEBUG] [Coms Thread] Handling message (e = " << (error_occurred ? "true" : "false") << ")" << std::endl;
         if (!coms_handle_request(&connection->reader, &connection->writer, server)) {
-            LOG_SYNC(std::cerr << "[DEBUG] [COMS] Failed to handle request" << std::endl);
+            //LOG_SYNC(std::cerr << "[DEBUG] [COMMS_SERVER] Failed to handle request" << std::endl);
             error_occurred = true;
             break;
         }
@@ -583,8 +548,6 @@ std::string errno_print(int err) {
 }
 
 void *coms_listener_thread(void *args) {
-    LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = THREAD_START" << std::endl;);
-
     // Variables
     struct sockaddr_in server_address;
     int listen_sockfd;
@@ -595,16 +558,14 @@ void *coms_listener_thread(void *args) {
     // Configure socket to listen
     {
         server_t *current_server = get_current_server();
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] current_server = " << *current_server << std::endl);
 
         // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
         // Initialize the socket
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [COMMUNICATIONS] Call to socket returned -1 (errno = " << errno_print(errno) << ")" << std::endl);
+            LOG_SYNC(perror("\033[31mERROR: [COMMS_SERVER] Call to 'socket' failed"); std::cerr << "\0330m");
             exit(1);
         }
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = SOCKET_CREATED" << std::endl;);
 
         // Bind the socket
         server_address.sin_family = AF_INET;
@@ -612,22 +573,18 @@ void *coms_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [COMMUNICATIONS] Call to bind returned -1 (errno = " << errno_print(errno) << ")" << std::endl);
+            LOG_SYNC(perror("\033[31mERROR: [COMMS_SERVER] Call to 'bind' failed\033[0m"));
             exit(1);
         }
-
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = SOCKET_BOUND" << std::endl;);
 
         // Setup listen queue
         listen(listen_sockfd, 15);
 
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = SOCKET_LISTENING" << std::endl;);
-
         // Register server socket into the closeable connection list
         add_connection(listen_sockfd);
     }
+    LOG_SYNC(std::cout << "[COMMS_SERVER] Setup successful" << std::endl);
 
     // Handle clients
     {
@@ -636,30 +593,28 @@ void *coms_listener_thread(void *args) {
         wait_for_init();
 
         while (!should_stop()) {
-            LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = HANDLING_DEFERRED_REQUESTS" << std::endl;);
             std::vector<request_t> *deferred_requests = acquire_deferred_requests();
             for (auto req : *deferred_requests) {
                 switch (req.type) {
                     case req_update_metadata:
-                        LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Handling req_update_metadata" << std::endl);
                         {
                             server_t *primary_server = get_primary_server();
                             connection_t *conn;
                             if (!connect_to_server(primary_server->ip, primary_server->port+2, &conn)) {
-                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Could not connect to primary server" << std::endl);
+                                LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_SERVER] [DEFERRED] Could not connect to primary server\033[0m" << std::endl);
                                 continue;
                             }
                             request_t request = { .type = req_fetch_metadata };
                             response_t response;
                             if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
-                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Could not perform request with primary server" << std::endl);
+                                LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_SERVER] [DEFERRED] Could not perform request with primary server\033[0m" << std::endl);
                                 close(conn->sockfd);
                                 conn_free(conn);
                                 continue;
                             }
 
                             if (response.status != STATUS_OK) {
-                                LOG_SYNC(std::cerr << "[DEBUG] [COMMS] [DEFERRED] Request to primary server failed (status = " << response.status << ")" << std::endl);
+                                LOG_SYNC(std::cerr << "\033[31mERROR: [COMMS_SERVER] [DEFERRED] Request to primary server failed (status = " << response.status << ")\033[0m" << std::endl);
                                 close(conn->sockfd);
                                 conn_free(conn);
                                 continue;
@@ -680,18 +635,14 @@ void *coms_listener_thread(void *args) {
             }
             release_deferred_requests();
 
-            LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = WAITING_FOR_CLIENT" << std::endl;);
-
             // Accept connecting clients and break on 
             connection_sockfd = accept(listen_sockfd, (struct sockaddr *) &client_address, &client_length);
             if (connection_sockfd == -1) {
-                LOG_SYNC(std::cerr << "ERROR: [COMMUNICATIONS] Call to accept returned -1 (errno = " << errno_print(errno) << ")" << std::endl);
+                LOG_SYNC(perror("\033[31mERROR: [COMMS_SERVER] Call to 'accept' failed\033[0m"));
                 break;
             }
 
             add_connection(connection_sockfd);
-
-            LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = HANDLING_CLIENT" << std::endl;);
 
             connection_t *connection = conn_new(
                     server_address.sin_addr,
@@ -707,14 +658,12 @@ void *coms_listener_thread(void *args) {
             };
 
             coms_handle_connection(connection, &server);
-
-            LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = CLIENT_HANDLED" << std::endl;);
         }
     }
 
     // Thread teardown
     {
-        LOG_SYNC(std::cerr << "[DEBUG] [COMMUNICATIONS] State = DONE" << std::endl;);
+        LOG_SYNC(std::cerr << "[COMMS_SERVER] Closing" << std::endl;);
 
         close(listen_sockfd);
         exit(EXIT_FAILURE);

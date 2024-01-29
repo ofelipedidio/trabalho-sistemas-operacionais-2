@@ -14,7 +14,6 @@ connection_t *conn_new(
         struct in_addr client_address,
         in_port_t client_port,
         int sockfd) {
-    std::cerr << "creating connection" << std::endl;
     connection_t *connection = (connection_t*) malloc(sizeof(connection_t));
     connection->connection_id = client_id++;
     connection->server_address = server_address;

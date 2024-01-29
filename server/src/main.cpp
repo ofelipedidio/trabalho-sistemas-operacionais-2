@@ -39,19 +39,14 @@ typedef struct {
 } arguments_t;
 
 int primary_init(arguments_t arguments) {
-    // std::cerr << "[DEBUG] Starting backup" << std::endl;
     state_init(arguments.ip, arguments.port, primary);
 
-    // std::cerr << "[DEBUG] Starting election thread" << std::endl;
     el_start_thread();
-    // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
     coms_thread_init();
-    LOG_SYNC(std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl);
     primary_heartbeat_thread_init();
 
     tcp_dump_1("0.0.0.0", arguments.port);
 
-    // std::cerr << "[DEBUG] Idle" << std::endl;
     while (true) { }
 
     return EXIT_FAILURE;
@@ -82,13 +77,13 @@ int backup_init(arguments_t arguments) {
         response_t response;
 
         // Execution
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to other server (" << std::hex << arguments.next_server_ip << std::dec << ":" << arguments.next_server_port << ")" << std::endl);
+        LOG_SYNC(std::cerr << "[SETUP] Connecting to other server (" << std::hex << arguments.next_server_ip << std::dec << ":" << arguments.next_server_port << ")" << std::endl);
         connect_to_server(arguments.next_server_ip, COMMUNICATION_PORT(arguments.next_server_port), &conn);
 
         request = { .type = req_hello };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [1]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [1]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -97,7 +92,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [2]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [2]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -107,7 +102,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_get_primary };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [3]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [3]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -116,7 +111,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [4]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [4]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -125,8 +120,6 @@ int backup_init(arguments_t arguments) {
 
         primary_ip = response.ip;
         primary_port = response.port;
-
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Primary is " << std::hex << primary_ip << std::dec << ":" << primary_port << std::endl);
 
         close(conn->sockfd);
         conn_free(conn);
@@ -142,13 +135,13 @@ int backup_init(arguments_t arguments) {
         server_t *primary_server = get_primary_server();
 
         // Execution
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to primary (" << std::hex << primary_ip << std::dec << ":" << primary_port << ")" << std::endl);
+        LOG_SYNC(std::cerr << "[SETUP] Connecting to primary (" << std::hex << primary_ip << std::dec << ":" << primary_port << ")" << std::endl);
         connect_to_server(primary_ip, COMMUNICATION_PORT(primary_port), &conn);
 
         request = { .type = req_hello };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [1]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [1]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -157,7 +150,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [2]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [2]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -167,7 +160,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_register };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [3]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [3]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -176,7 +169,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [4]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [4]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -186,7 +179,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_fetch_metadata };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [5]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [5]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -195,7 +188,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [6]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [6]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -210,9 +203,6 @@ int backup_init(arguments_t arguments) {
         close(conn->sockfd);
         conn_free(conn);
     }
-
-
-    init_done();
 
     // 4. Start heartbeat
     heartbeat_thread_init();

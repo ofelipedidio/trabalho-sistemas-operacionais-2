@@ -19,7 +19,7 @@ typedef struct {
     std::vector<server_t> servers;
 } metadata_t;
 
-void initiateElection();
+void initiateElection(server_t primary_server);
 
 bool server_eq(const server_t *a, const server_t *b);
 

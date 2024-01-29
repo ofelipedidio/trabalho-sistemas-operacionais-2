@@ -39,13 +39,11 @@ void *heartbeat_listener_thread(void *args) {
 
     {
         server_t *current_server = get_current_server();
-        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] current_server = " << *current_server << std::endl);
 
         // Initialize the socket
-        // std::cerr << "[DEBUG] [Coms] Creating socket" << std::endl;
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
-            LOG_SYNC(std::cerr << "bbbbbbbbbbbbbbbbbbbbb1" << std::endl);
+            LOG_SYNC(perror("\033[31mERROR: [HEARTBEAT_SERVER] Call to 'socket' failed\033[0m"));
             exit(1);
         }
 
@@ -55,10 +53,8 @@ void *heartbeat_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        // std::cerr << "[DEBUG] [Coms] Binding socket" << std::endl;
-        LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
-            LOG_SYNC(std::cerr << "bbbbbbbbbbbbbbbbbbbbb2" << std::endl);
+            LOG_SYNC(perror("\033[31mERROR: [HEARTBEAT_SERVER] Call to 'bind' failed\033[0m"));
             exit(1);
         }
 
@@ -75,7 +71,7 @@ void *heartbeat_listener_thread(void *args) {
     struct sockaddr_in client_address;
     socklen_t client_length;
 
-    wait_for_init();
+    LOG_SYNC(std::cout << "[HEARTBEAT_SERVER] Setup successful" << std::endl);
 
     // Listen for clients
     while (!should_stop()) {
@@ -95,6 +91,14 @@ void *heartbeat_listener_thread(void *args) {
                 ntohs(client_address.sin_port),
                 connection_sockfd);
 
+        uint16_t client_port;
+        if (!read_u16(connection->reader, &client_port)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [HEARTBEAT_SERVER] Failed to read port from client\033[0m" << std::endl);
+            exit(EXIT_FAILURE);
+        }
+
+        LOG_SYNC(std::cout << "[HEARTBEAT_SERVER] Connection from " << std::hex << connection->client_address.s_addr << ":" << std::dec << client_port << std::endl);
+
         // coms_handle_connection(connection,);
         std::vector <connection_t*> *coneccoes = get_heartbeat_connections();
         (*coneccoes).push_back(connection);
@@ -109,20 +113,32 @@ void *heartbeat_listener_thread(void *args) {
 void *heartbeat_writer_thread(void *args) {
     while (!should_stop())
     {
+        server_t primary_server;
         connection_t *conn;
         {
-            server_t *primary_server = get_primary_server();
+            server_t *primary_server_ref = get_primary_server();
+            primary_server = *primary_server_ref;
             server_t *current_server = get_current_server();
 
-            if (server_eq(primary_server,current_server)){
+            if (server_eq(&primary_server, current_server)){
                 return NULL;
             }
 
-            if (!connect_to_server(primary_server->ip, primary_server->port+3, &conn)) {
-                LOG_SYNC(std::cerr << "[DEBUG] [HEARTBEAT] connect_to_server failed" << std::endl);
-                exit(EXIT_FAILURE);
+            if (!connect_to_server(primary_server.ip, primary_server.port+3, &conn)) {
+                LOG_SYNC(std::cerr << "\033[31mERROR: [HEARTBEAT_CLIENT] connect_to_server failed\033[0m" << std::endl);
+                initiateElection(primary_server);
+                sleep(5);
+                continue;
             }
 
+            if (!write_u16(conn->writer, current_server->port)) {
+                LOG_SYNC(std::cerr << "\033[31mERROR: [HEARTBEAT_CLIENT] Port forward failed\033[0m" << std::endl);
+                initiateElection(primary_server);
+                sleep(5);
+                continue;
+            }
+
+            /*
             int optval = 1;
             socklen_t optlen = sizeof(optval);
             if(setsockopt(conn->sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
@@ -138,19 +154,21 @@ void *heartbeat_writer_thread(void *args) {
             }
 
             std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl;
+            */
 
             set_heartbeat_socket(conn);
         }
 
-        while (!should_stop())
-        {
+        LOG_SYNC(std::cout << "[HEARTBEAT] Starting heartbeat with primary server" << std::endl);
+        while (!should_stop()) {
             sleep(2);
             if (!write_u8(conn->writer,0) || !flush(conn->writer)){
-                std::cerr << "[Heartbeat] connection reset" << std::endl;
-                initiateElection();
+                std::cerr << "\033[32m[HEARTBEAT] Detected primary failure\033[0m" << std::endl;
+                initiateElection(primary_server);
                 break;
             }
-        }    
+        }
+        sleep(5);
     }
 
     return NULL;

@@ -70,9 +70,11 @@ server_t *get_current_server() {
 server_t *get_primary_server() {
     metadata_t *metadata = acquire_metadata();
     for (server_t server : metadata->servers) {
-        state.primary_server = server;
-        release_metadata();
-        return &state.primary_server;
+        if (server.server_type == primary) {
+            state.primary_server = server;
+            release_metadata();
+            return &state.primary_server;
+        }
     }
     release_metadata();
     return NULL;
@@ -82,15 +84,15 @@ server_t *get_primary_server() {
 * Metadata *
 \**********/
 metadata_t *acquire_metadata() {
-    LOG_SYNC(std::cerr << "[DEBUG] [State] Acquiring metadata" << std::endl);
+    // LOG_SYNC(std::cerr << "[DEBUG] [State] Acquiring metadata" << std::endl);
     sem_wait(&state.metadata_mutex);
-    LOG_SYNC(std::cerr << "[DEBUG] [State] Metadata acquired" << std::endl);
+    // LOG_SYNC(std::cerr << "[DEBUG] [State] Metadata acquired" << std::endl);
     return &state.metadata;
 }
 
 void release_metadata() {
     acquire_logging_mutex();
-    std::cerr << "(metadata) [ ";
+    std::cerr << "[STATE] metadata.server = [ ";
     for (auto server : state.metadata.servers) {
         printServer(std::cerr, server);
         std::cerr << ", ";

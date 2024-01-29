@@ -43,16 +43,21 @@ bool server_eq(const server_t *a, const server_t *b) {
     return a->ip == b->ip && a->port == b->port;
 }
 
-void initiateElection() {
+void initiateElection(server_t primary_server) {
     server_t *currentServer = get_current_server();
     if((*currentServer).server_type == primary) return;
     metadata_t *metadata = acquire_metadata();
     {
         metadata_t new_metadata;
         for(auto server : metadata->servers) {
-            if (server.server_type != primary) {
+            if (!server_eq(&server, &primary_server)) {
                 new_metadata.servers.push_back(server);
             }
+        }
+        if (new_metadata.servers.size() == metadata->servers.size()) {
+            LOG_SYNC(std::cout << "[ELECTION_CLIENT] Election initiation request ignored because the primary has already changed" << std::endl);
+            release_metadata();
+            return;
         }
         *metadata = new_metadata;
     }
@@ -60,13 +65,8 @@ void initiateElection() {
 
     release_metadata();
     
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [1] Initiated" << std::endl);
-    // Get current server
-    
     // Get next server
     server_t nextServer = getNextServer(*currentServer);
-
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [3] Next server is " << nextServer << std::endl);
 
     // Send election message to the next server
     sendElectionMessage(nextServer, *currentServer);
@@ -98,13 +98,12 @@ server_t getNextServer(const server_t currentServer) {
         // Check for data consistency
         if (self == metadata->servers.size()) {
             release_metadata();
-            fprintf(stderr, "[Consistency fail] Failed to find currentServer in metadata!\n");
+            LOG_SYNC(std::cerr << "[Consistency fail] Failed to find currentServer in metadata!" << std::endl);
             exit(EXIT_FAILURE);
         }
 
         // Iterate over the servers to find the next non-primary server
         next_server = metadata->servers[(self+1) % metadata->servers.size()];
-        LOG_SYNC(std::cerr << "[DEBUG] [Election] [2] Iterated through " << next_server << std::endl);
     }
     release_metadata();
 
@@ -129,7 +128,7 @@ void printServer(std::ostream &stream, const server_t server){
  */
 void sendElectionMessage(server_t nextServer, server_t winningServer) {
     // Connect to the next server
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [4] (election) Sending election to " << nextServer << std::endl);
+    LOG_SYNC(std::cout << "[ELECTION_CLIENT] Sending <election, " << winningServer << "> to " << nextServer << std::endl);
     connection_t *conn;
     {
         // Setup
@@ -142,14 +141,14 @@ void sendElectionMessage(server_t nextServer, server_t winningServer) {
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1] Could not create the socket" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Could not create the socket\033[0m" << std::endl);
             return;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 2] Could not connect to the server" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Could not connect to the server\033[0m" << std::endl);
             return;
         }
 
@@ -163,27 +162,26 @@ void sendElectionMessage(server_t nextServer, server_t winningServer) {
                 ntohs(server_addr.sin_port),
                 sockfd);
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [5] (election) Connection established" << std::endl);
 
     // Send election message
     if (!write_u8(conn->writer, MESSAGE_ELECTION)) {
-        LOG_SYNC(std::cerr << "ERROR 1" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (message type)\033[0m" << std::endl);
         return;
     }
     if (!write_u32(conn->writer, winningServer.ip)) {
-        LOG_SYNC(std::cerr << "ERROR 2" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (ip)\033[0m" << std::endl);
         return;
     }
     if (!write_u16(conn->writer, winningServer.port)) {
-        LOG_SYNC(std::cerr << "ERROR 3" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (port)\033[0m" << std::endl);
         return;
     }
-    // Flush writer
     if (!flush(conn->writer)) {
-        LOG_SYNC(std::cerr << "ERROR 4" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (flush)\033[0m" << std::endl);
         return;
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [6] (election) Message sent" << std::endl);
+
+    LOG_SYNC(std::cout << "\033[35m[ELECTION_CLIENT] Sent <election, " << winningServer << "> to " << nextServer << " successfully\033[0m" << std::endl);
 }
 
 /*
@@ -191,7 +189,7 @@ void sendElectionMessage(server_t nextServer, server_t winningServer) {
  */
 void sendElectedMessage(server_t nextServer, server_t electedServer) {
     // Connect to the next server
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [8] (elected) Sending election to " << nextServer << std::endl);
+    LOG_SYNC(std::cout << "[ELECTION_CLIENT] Sending <elected, " << electedServer << "> to " << nextServer << std::endl);
     connection_t *conn;
     {
         // Setup
@@ -204,14 +202,14 @@ void sendElectedMessage(server_t nextServer, server_t electedServer) {
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 3] Could not create the socket" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Could not create the socket\033[0m" << std::endl);
             return;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 4] Could not connect to the server" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Could not connect to the server\033[0m" << std::endl);
             return;
         }
 
@@ -225,27 +223,26 @@ void sendElectedMessage(server_t nextServer, server_t electedServer) {
                 ntohs(server_addr.sin_port),
                 sockfd);
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [9] (elected) Connection established" << std::endl);
 
     // Send elected message
     if (!write_u8(conn->writer, MESSAGE_ELECTED)) {
-        LOG_SYNC(std::cerr << "ERROR 1" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (message type)\033[0m" << std::endl);
         return;
     }
     if (!write_u32(conn->writer, electedServer.ip)) {
-        LOG_SYNC(std::cerr << "ERROR 2" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (ip)\033[0m" << std::endl);
         return;
     }
     if (!write_u16(conn->writer, electedServer.port)) {
-        LOG_SYNC(std::cerr << "ERROR 3" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (port)\033[0m" << std::endl);
         return;
     }
-    // Flush writer
     if (!flush(conn->writer)) {
-        LOG_SYNC(std::cerr << "ERROR 4" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed write attempt (flush)\033[0m" << std::endl);
         return;
     }
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [10] (elected) Message sent" << std::endl);
+
+    LOG_SYNC(std::cout << "\033[35m[ELECTION_CLIENT] Sent <elected, " << electedServer << "> to " << nextServer << " successfully\033[0m" << std::endl);
 }
 
 /*
@@ -266,7 +263,7 @@ void setElected() {
     }
     release_metadata();
 
-    // TODO - Didio: client stuff (update connection and such)
+    LOG_SYNC(std::cout << "\033[32m[ELECTION] This server is now the primary server\033[0m" << std::endl);
 }
 
 /*
@@ -286,14 +283,14 @@ bool updateElected(server_t electedServer) {
         // Create socket
         int sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1] Could not create the socket" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [Election connection init 1] Could not create the socket\033[0m" << std::endl);
             return false;
         }
 
         // Connect
         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
         if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1] Could not connect to the server" << std::endl);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [Election connection init 1] Could not connect to the server\033[0m" << std::endl);
             return false;
         }
 
@@ -313,29 +310,26 @@ bool updateElected(server_t electedServer) {
     response_t response;
     if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
         // Catch network errors
-        LOG_SYNC(std::cerr << "ERROR 100" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR 100\033[0m" << std::endl);
         return false;
     }
 
     // Catch logic errors
     if (response.status != 0) {
-        LOG_SYNC(std::cerr << "ERROR 101" << std::endl);
+        LOG_SYNC(std::cerr << "\033[31mERROR 101\033[0m" << std::endl);
         return false;
     }
 
     // Handle response
-    // std::cerr << "[DEBUG] Acquiring metadata" << std::endl;
     metadata_t *metadata = acquire_metadata();
     // Critical section
     {
-        // std::cerr << "[DEBUG] Updating metadata (len = " << response.metadata.servers.size() << ")" << std::endl;
         metadata->servers.clear();
         for (auto server : response.metadata.servers) {
             LOG_SYNC(std::cerr << "aaa: " << server << std::endl);
             metadata->servers.push_back(server);
         }
     }
-    // std::cerr << "[DEBUG] Releasing metadata" << std::endl;
     release_metadata();
 
     // Close the connection and free the allocated memory
@@ -354,6 +348,8 @@ bool updateElected(server_t electedServer) {
  * Inbound election message handler
  */
 void handle_async_election_message(server_t winningServer) {
+    LOG_SYNC(std::cout << "\033[35m[ELECTION_SERVER] Received <election, " << winningServer << "> message\033[0m" << std::endl);
+
     metadata_t *metadata = acquire_metadata();
     {
         metadata_t new_metadata;
@@ -364,20 +360,14 @@ void handle_async_election_message(server_t winningServer) {
         }
         *metadata = new_metadata;
     }
-    // TODO - Didio: handle closing connections with primary and such
 
     release_metadata();
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [7] (election) Receive message with server (" << winningServer << ")" << std::endl);
-
     server_t *currentServer = get_current_server();
-    // Get next server
     server_t nextServer = getNextServer(*currentServer);
-    // Check if the message has reached the highest id server
     if(server_eq(currentServer, &winningServer)) {
         setElected();
         return sendElectedMessage(nextServer, *currentServer);
     }
-    // Check if the current server has higher id then the winning server
     if(comp(*currentServer, winningServer)) {
         return sendElectionMessage(nextServer, *currentServer);
     } else {
@@ -389,17 +379,12 @@ void handle_async_election_message(server_t winningServer) {
  * Inbound elected message handler
  */
 void handle_async_elected_message(server_t electedServer){
-    LOG_SYNC(std::cerr << "[DEBUG] [Election] [11] (elected) Receive message with server (" << electedServer << ")" << std::endl);
+    LOG_SYNC(std::cout << "\033[35m[ELECTION_SERVER] Received <elected, " << electedServer << "> message\033[0m" << std::endl);
 
     server_t *currentServer = get_current_server();
-    LOG_SYNC(std::cerr << "[Election] election finished (" << electedServer << ")" << std::endl);
-    // Check if the current server is the elected server (election is concluded) and forward the message if it isn't
     if (!server_eq(currentServer, &electedServer)) {
-        // Update the current server's metadata with the elected server's metadata
         updateElected(electedServer);
-        // Get the next server
         server_t nextServer = getNextServer(*currentServer);
-        // Send elected message to the next server
         sendElectedMessage(nextServer, electedServer);
     }
 }
@@ -416,24 +401,19 @@ typedef struct {
  * Thread that handles election messages
  */
 void *election_listener_thread(void *args) {
-    LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Thread created" << std::endl);
-
     struct sockaddr_in server_address;
     int listen_sockfd;
 
     {
         server_t *current_server = get_current_server();
-        LOG_SYNC(std::cerr << "[DEBUG] [ELECTION] current_server = " << *current_server << std::endl);
-
         int connection_sockfd;
         socklen_t client_length;
         struct sockaddr_in client_address;
 
         // Initialize the socket
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Creating socket" << std::endl);
         listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (listen_sockfd == -1) {
-            LOG_SYNC(std::cerr << "aaaaaaaaaaaaaaaaaaaaa1" << std::endl);
+            LOG_SYNC(perror("\033[31mERROR: [ELECTION_SERVER] Call to 'socket' failed"); std::cerr << "\033[0m");
             exit(1);
         }
 
@@ -443,18 +423,15 @@ void *election_listener_thread(void *args) {
         server_address.sin_addr.s_addr = INADDR_ANY;
         bzero(&(server_address.sin_zero), 8);
 
-        LOG_SYNC(std::cerr << "[DEBUG] [ELECTION] Binding socket to " << std::hex << server_address.sin_addr.s_addr << std::dec << ":" << ntohs(server_address.sin_port) << std::endl);
         if (bind(listen_sockfd, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
-            LOG_SYNC(std::cerr << "aaaaaaaaaaaaaaaaaaaaa2" << std::endl);
+            LOG_SYNC(perror("ERROR: [ELECTION_SERVER] Call to 'bind' failed"));
             exit(1);
         }
 
         // Setup listen queue
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Listening on socket" << std::endl);
         listen(listen_sockfd, 15);
 
         // Register server socket into the closeable connection list
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Storing socket" << std::endl);
         add_connection(listen_sockfd);
     }
 
@@ -465,17 +442,15 @@ void *election_listener_thread(void *args) {
     uint8_t request;
     server_t server;
 
-    wait_for_init();
+    LOG_SYNC(std::cout << "[ELECTION_SERVER] Setup successful" << std::endl);
 
     // Listen for clients
     while (!should_stop()) {
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Waiting for client" << std::endl);
         client_length = sizeof(struct sockaddr_in);
         connection_sockfd = accept(listen_sockfd, (struct sockaddr *) &client_address, &client_length);
         if (connection_sockfd == -1) {
             break;
         }
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Handling client" << std::endl);
         add_connection(connection_sockfd);
 
         connection_t *conn = conn_new(
@@ -486,29 +461,27 @@ void *election_listener_thread(void *args) {
                 connection_sockfd);
 
         server_t server = {
-            .ip = client_address.sin_addr.s_addr,
-            .port = client_address.sin_port,
+            .ip = conn->client_address.s_addr,
+            .port = conn->client_port,
             .server_type = backup,
         };
-
-        LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Received a connection from " << server << std::endl);
+        LOG_SYNC(std::cerr << "[ELECTION_SERVER] Received a connection from " << server << std::endl);
 
         // Read message
         if (!read_u8(conn->reader, &request)) {
-            LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Received a connection from ");
-            LOG_SYNC(fprintf(stderr, "Could not read request from election thread!\n"));
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_SERVER] Failed to read request (message type)\033[0m" << std::endl);
             close(conn->sockfd);
             exit(EXIT_FAILURE);
             break;
         }
         if (!read_u32(conn->reader, &server.ip)) {
-            fprintf(stderr, "Could not read ip from election thread!\n");
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_SERVER] Failed to read request (ip)\033[0m" << std::endl);
             close(conn->sockfd);
             exit(EXIT_FAILURE);
             break;
         }
         if (!read_u16(conn->reader, &server.port)) {
-            fprintf(stderr, "Could not read port from election thread!\n");
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_SERVER] Failed to read request (port)\033[0m" << std::endl);
             close(conn->sockfd);
             exit(EXIT_FAILURE);
             break;
@@ -520,10 +493,11 @@ void *election_listener_thread(void *args) {
         } else if (request == 20) {
             handle_async_elected_message(server);
         } else {
-            fprintf(stderr, "Read unknown request (%d)", (uint32_t) request);
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_SERVER] Read unknown request message type (" << ((uint32_t) request) << ")\033[0m" << std::endl);
             close(conn->sockfd);
             break;
         }
+        close(conn->sockfd);
     }
 
     close(listen_sockfd);
