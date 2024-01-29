@@ -38,16 +38,11 @@ bool fill_buffer(struct tcp_reader& reader) {
         reader.buffer_switch = !reader.buffer_switch;
         uint8_t *buffer = curr_buf(reader);
 
-        std::cerr << "\033[33m - 28 - \033[0m" << std::endl;
         int read_size = read(reader.sockfd, buffer, RSIZE);
-        auto err = errno;
-        std::cerr << "\033[33m - 29 - (" << ((uint32_t) read_size) << " -- " << err << ")\033[0m" << std::endl;
         if (read_size <= 0) {
-            /*
-            if (err == EAGAIN) {
+            if (errno == EAGAIN) {
                 continue;
             }
-            */
             std::cerr << "ERROR: [Reader.fill_buffer] read failed with errno = `" << errno << "`" << std::endl; 
             return false;
         }
@@ -209,4 +204,3 @@ bool read_byte_array(struct tcp_reader& reader, uint8_t **val, uint64_t *length)
 
     return true;
 }
-

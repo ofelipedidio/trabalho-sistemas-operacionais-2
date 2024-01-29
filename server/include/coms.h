@@ -22,20 +22,6 @@ typedef struct {
 
 typedef enum {
     /*
-     * Starts transaction
-     *
-     * If a transaction has already been initiated, returns STATUS_TRANSACTION_ERROR
-     */
-    req_transaction_start,
-    
-    /*
-     * End transaction
-     *
-     * If a transaction has not already been initiated, returns STATUS_TRANSACTION_ERROR
-     */
-    req_transaction_end,
-    
-    /*
      * Request metadata
      */
     req_fetch_metadata,
@@ -71,11 +57,3 @@ bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection
 bool _coms_sync_execute_request(tcp_reader *reader, tcp_writer *writer, request_t request, response_t *out_response);
 
 bool coms_thread_init();
-
-void *heartbeat_listener_thread(void *args);
-
-void *heartbeat_writer_thread(void *args);
-
-bool heartbeat_thread_init();
-
-bool primary_heartbeat_thread_init();

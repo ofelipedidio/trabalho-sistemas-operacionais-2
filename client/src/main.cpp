@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
         std::cerr << "ERRO! O app requer 3 arguments: " << argv[0] << " <username> <ip do servidor> <porta>" << std::endl;
         return 1;
     }
+    Network::set_dns(0x100007f, 5000);
 
     // Parse input
     std::string username(argv[1]);

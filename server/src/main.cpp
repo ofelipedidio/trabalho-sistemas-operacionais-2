@@ -17,6 +17,7 @@
 #include "../include/client.h"
 #include "../include/election.h"
 #include "../include/coms.h"
+#include "../include/heartbeat.h"
 
 typedef struct {
     /*******************************************************\
@@ -35,22 +36,60 @@ typedef struct {
     \************************************************************/
     uint32_t next_server_ip;
     uint16_t next_server_port;
+
+    uint32_t dns_ip;
+    uint16_t dns_port;
 } arguments_t;
 
 int primary_init(arguments_t arguments) {
-    // std::cerr << "[DEBUG] Starting backup" << std::endl;
-    state_init(arguments.ip, arguments.port, primary);
+    state_init(arguments.ip, arguments.port, primary, arguments.dns_ip, arguments.dns_port);
 
-    // std::cerr << "[DEBUG] Starting election thread" << std::endl;
     el_start_thread();
-    // std::cerr << "[DEBUG] Starting communications thread" << std::endl;
     coms_thread_init();
-    LOG_SYNC(std::cerr << "[DEBUG] Starting heartbeat thread" << std::endl);
     primary_heartbeat_thread_init();
+
+    server_t *current_server = get_current_server();
+    {
+        uint32_t dns_ip;
+        uint16_t dns_port;
+        connection_t *conn;
+
+        get_dns(&dns_ip, &dns_port);
+        if (!connect_to_server(dns_ip, dns_port, &conn)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to connect to DNS\033[0m" << std::endl);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u8(conn->writer, 20)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (message type)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u32(conn->writer, current_server->ip)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (ip)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u16(conn->writer, current_server->port)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (port)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!flush(conn->writer)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (flush)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        close(conn->sockfd);
+    }
 
     tcp_dump_1("0.0.0.0", arguments.port);
 
-    // std::cerr << "[DEBUG] Idle" << std::endl;
+
     while (true) { }
 
     return EXIT_FAILURE;
@@ -67,7 +106,7 @@ int backup_init(arguments_t arguments) {
 
     // [On startup]
     // 0. Start state
-    state_init(arguments.ip, arguments.port, backup);
+    state_init(arguments.ip, arguments.port, backup, arguments.dns_ip, arguments.dns_port);
 
     // 1. Start listeners
     el_start_thread();
@@ -81,13 +120,13 @@ int backup_init(arguments_t arguments) {
         response_t response;
 
         // Execution
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to other server (" << std::hex << arguments.next_server_ip << std::dec << ":" << arguments.next_server_port << ")" << std::endl);
+        LOG_SYNC(std::cerr << "[SETUP] Connecting to other server (" << std::hex << arguments.next_server_ip << std::dec << ":" << arguments.next_server_port << ")" << std::endl);
         connect_to_server(arguments.next_server_ip, COMMUNICATION_PORT(arguments.next_server_port), &conn);
 
         request = { .type = req_hello };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [1]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [1]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -96,7 +135,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [2]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [2]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -106,7 +145,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_get_primary };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [3]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [3]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -115,7 +154,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `other server` [4]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `other server` [4]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -124,8 +163,6 @@ int backup_init(arguments_t arguments) {
 
         primary_ip = response.ip;
         primary_port = response.port;
-
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Primary is " << std::hex << primary_ip << std::dec << ":" << primary_port << std::endl);
 
         close(conn->sockfd);
         conn_free(conn);
@@ -141,13 +178,13 @@ int backup_init(arguments_t arguments) {
         server_t *primary_server = get_primary_server();
 
         // Execution
-        LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Connecting to primary (" << std::hex << primary_ip << std::dec << ":" << primary_port << ")" << std::endl);
+        LOG_SYNC(std::cerr << "[SETUP] Connecting to primary (" << std::hex << primary_ip << std::dec << ":" << primary_port << ")" << std::endl);
         connect_to_server(primary_ip, COMMUNICATION_PORT(primary_port), &conn);
 
         request = { .type = req_hello };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [1]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [1]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -156,7 +193,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [2]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [2]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -166,7 +203,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_register };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [3]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [3]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -175,7 +212,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [4]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [4]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -185,7 +222,7 @@ int backup_init(arguments_t arguments) {
         request = { .type = req_fetch_metadata };
         if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [5]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [5]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -194,7 +231,7 @@ int backup_init(arguments_t arguments) {
 
         if (response.status != STATUS_OK) {
             set_should_stop(true);
-            LOG_SYNC(std::cerr << "ERROR: Could not communicate with `primary server` [6]" << std::endl);
+            LOG_SYNC(std::cerr << "ERROR: [SETUP] Could not communicate with `primary server` [6]" << std::endl);
             close(conn->sockfd);
             conn_free(conn);
             init_done();
@@ -209,9 +246,6 @@ int backup_init(arguments_t arguments) {
         close(conn->sockfd);
         conn_free(conn);
     }
-
-
-    init_done();
 
     // 4. Start heartbeat
     heartbeat_thread_init();
@@ -263,7 +297,7 @@ int main(int argc, char **argv) {
 
 
     if (strcmp(argv[1], "p") == 0) {
-        if (argc != 4) {
+        if (argc != 6) {
             fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
@@ -275,9 +309,17 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
+        if (!check_ip(argv[4], &arguments.dns_ip)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[5], &arguments.dns_port)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
         return primary_init(arguments);
     } else if (strcmp(argv[1], "b") == 0) {
-        if (argc != 6) {
+        if (argc != 8) {
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
@@ -297,10 +339,18 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
+        if (!check_ip(argv[6], &arguments.dns_ip)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor> <ip do dns> <porta do dns>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[7], &arguments.dns_port)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor> <ip do dns> <porta do dns>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
         return backup_init(arguments);
     } else {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
+        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 

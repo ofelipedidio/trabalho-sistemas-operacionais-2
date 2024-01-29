@@ -303,6 +303,7 @@ bool tcp_dump_1(std::string ip, uint16_t port) {
                 client_address.sin_addr,
                 ntohs(client_address.sin_port),
                 connection_sockfd);
+        add_connection(connection->sockfd);
 
         handle_connection(connection);
     }

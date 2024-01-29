@@ -40,4 +40,6 @@ namespace Network {
     
     bool try_get_task_by_id(int task_id, network_task_t *task);
     void get_task_by_id(int task_id, network_task_t *task);
+
+    void set_dns(uint32_t ip, uint16_t port);
 }

@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "../include/closeable.h"
-#include "../include/election.h"
 
 std::vector<int> socket_fds;
 
@@ -24,11 +23,3 @@ void sigint_handler(int param) {
     close_all_connections();
     exit(1);
 }
-
-void sigpipe_handler(int signal_number) {
-    std::cerr << "\n[SIGPIPE_HANDLER]Caught SIGPIPE signal (" << signal_number << ")." << std::endl;      
-    // TODO - Didio: close connection with primary
-    //closeSocket();
-    //initiateElection();
-}
-
