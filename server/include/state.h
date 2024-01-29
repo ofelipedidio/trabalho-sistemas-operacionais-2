@@ -26,12 +26,15 @@ typedef struct {
 
     sem_t deferred_requests_mutex;
     std::vector<request_t> deferred_requests;
+
+    uint32_t dns_ip;
+    uint16_t dns_port;
 } program_state_t;
 
 /****************\
 * Initialization *
 \****************/
-void state_init(uint32_t ip, uint16_t port, server_type_t type);
+void state_init(uint32_t ip, uint16_t port, server_type_t type, uint32_t dns_ip, uint16_t dns_port);
 
 void wait_for_init();
 
@@ -40,6 +43,8 @@ void init_done();
 std::vector<request_t> *acquire_deferred_requests();
 
 void release_deferred_requests();
+
+void get_dns(uint32_t *ip, uint16_t *port);
 
 /*************\
 * Should stop *

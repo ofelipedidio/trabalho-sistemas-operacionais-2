@@ -36,16 +36,59 @@ typedef struct {
     \************************************************************/
     uint32_t next_server_ip;
     uint16_t next_server_port;
+
+    uint32_t dns_ip;
+    uint16_t dns_port;
 } arguments_t;
 
 int primary_init(arguments_t arguments) {
-    state_init(arguments.ip, arguments.port, primary);
+    state_init(arguments.ip, arguments.port, primary, arguments.dns_ip, arguments.dns_port);
 
     el_start_thread();
     coms_thread_init();
     primary_heartbeat_thread_init();
 
+    server_t *current_server = get_current_server();
+    {
+        uint32_t dns_ip;
+        uint16_t dns_port;
+        connection_t *conn;
+
+        get_dns(&dns_ip, &dns_port);
+        if (!connect_to_server(dns_ip, dns_port, &conn)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to connect to DNS\033[0m" << std::endl);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u8(conn->writer, 20)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (message type)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u32(conn->writer, current_server->ip)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (ip)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u16(conn->writer, current_server->port)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (port)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!flush(conn->writer)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [SETUP] Failed to communicate to DNS (flush)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        close(conn->sockfd);
+    }
+
     tcp_dump_1("0.0.0.0", arguments.port);
+
 
     while (true) { }
 
@@ -63,7 +106,7 @@ int backup_init(arguments_t arguments) {
 
     // [On startup]
     // 0. Start state
-    state_init(arguments.ip, arguments.port, backup);
+    state_init(arguments.ip, arguments.port, backup, arguments.dns_ip, arguments.dns_port);
 
     // 1. Start listeners
     el_start_thread();
@@ -254,7 +297,7 @@ int main(int argc, char **argv) {
 
 
     if (strcmp(argv[1], "p") == 0) {
-        if (argc != 4) {
+        if (argc != 6) {
             fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
@@ -266,9 +309,17 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
+        if (!check_ip(argv[4], &arguments.dns_ip)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[5], &arguments.dns_port)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
         return primary_init(arguments);
     } else if (strcmp(argv[1], "b") == 0) {
-        if (argc != 6) {
+        if (argc != 8) {
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
@@ -288,10 +339,18 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
             return EXIT_FAILURE;
         }
+        if (!check_ip(argv[6], &arguments.dns_ip)) {
+            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor> <ip do dns> <porta do dns>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        if (!check_port(argv[7], &arguments.dns_port)) {
+            fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor> <ip do dns> <porta do dns>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
         return backup_init(arguments);
     } else {
         fprintf(stderr, "Uso correto: %s p <ip do servidor> <porta do servidor>\n", argv[0]);
-            fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
+        fprintf(stderr, "Uso correto: %s b <ip do servidor> <porta do servidor> <ip de outro servidor> <porta de outro servidor>\n", argv[0]);
         return EXIT_FAILURE;
     }
 

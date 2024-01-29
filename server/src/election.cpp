@@ -251,8 +251,8 @@ void sendElectedMessage(server_t nextServer, server_t electedServer) {
 void setElected() {
     metadata_t *metadata = acquire_metadata();
     // Critical section
+    server_t *current_server = get_current_server();
     {
-        server_t *current_server = get_current_server();
         current_server->server_type = primary;
         for (int i = 0; i < metadata->servers.size(); i++) {
             if (server_eq(current_server, &metadata->servers[i])) {
@@ -262,6 +262,44 @@ void setElected() {
         }
     }
     release_metadata();
+
+    {
+        uint32_t dns_ip;
+        uint16_t dns_port;
+        connection_t *conn;
+
+        get_dns(&dns_ip, &dns_port);
+        if (!connect_to_server(dns_ip, dns_port, &conn)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed to connect to DNS\033[0m" << std::endl);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u8(conn->writer, 20)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed to communicate to DNS (message type)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u32(conn->writer, current_server->ip)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed to communicate to DNS (ip)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!write_u16(conn->writer, current_server->port)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed to communicate to DNS (port)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        if (!flush(conn->writer)) {
+            LOG_SYNC(std::cerr << "\033[31mERROR: [ELECTION_CLIENT] Failed to communicate to DNS (flush)\033[0m" << std::endl);
+            close(conn->sockfd);
+            exit(EXIT_FAILURE);
+        }
+
+        close(conn->sockfd);
+    }
 
     LOG_SYNC(std::cout << "\033[32m[ELECTION] This server is now the primary server\033[0m" << std::endl);
 }
