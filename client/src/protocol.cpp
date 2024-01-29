@@ -211,52 +211,67 @@ bool request_exit(connection_t *connection) {
 bool request_update(connection_t *connection, uint8_t *out_status,
         file_event_t *out_event) {
     // Send the request
+    std::cerr << "\033[33m - 13 - \033[0m" << std::endl;
     if (!write_u16(connection->writer, PROTOCOL_VERSION)) {
         return false;
     }
+    std::cerr << "\033[33m - 14 - \033[0m" << std::endl;
     if (!write_u8(connection->writer, PACKET_TYPE_UPDATE)) {
         return false;
     }
+    std::cerr << "\033[33m - 15 - \033[0m" << std::endl;
     if (!flush(connection->writer)) {
         return false;
     }
 
     // Receive the response
     uint16_t protocol_version;
+    std::cerr << "\033[33m - 16 - \033[0m" << std::endl;
     if (!read_u16(connection->reader, &protocol_version)) {
         return false;
     }
+    std::cerr << "\033[33m - 17 - \033[0m" << std::endl;
     if (protocol_version != PROTOCOL_VERSION) {
         return false;
     }
+    std::cerr << "\033[33m - 18 - \033[0m" << std::endl;
     if (!read_u8(connection->reader, out_status)) {
         return false;
     }
+    std::cerr << "\033[33m - 19 - \033[0m" << std::endl;
     if (*out_status != STATUS_SUCCESS) {
         return true;
     }
+    std::cerr << "\033[33m - 20 - \033[0m" << std::endl;
     uint32_t event_type;
     std::string filename;
     if (!read_u32(connection->reader, &event_type)) {
         return false;
     }
+    std::cerr << "\033[33m - 21 - \033[0m" << std::endl;
     if (!read_string(connection->reader, &filename)) {
         return false;
     }
+    std::cerr << "\033[33m - 22 - \033[0m" << std::endl;
     switch (event_type) {
         case event_file_modified:
+            std::cerr << "\033[33m - 23 - \033[0m" << std::endl;
             out_event->type = event_file_modified;
             break;
         case event_file_deleted:
+            std::cerr << "\033[33m - 24 - \033[0m" << std::endl;
             out_event->type = event_file_deleted;
             break;
         default:
+            std::cerr << "\033[33m - 25 - \033[0m" << std::endl;
             std::cerr << "ERROR: [requesting update] Got unknown event type ("
                 << event_type << ")" << std::endl;
             return false;
             break;
     }
+    std::cerr << "\033[33m - 26 - \033[0m" << std::endl;
     out_event->filename = filename;
+    std::cerr << "\033[33m - 27 - \033[0m" << std::endl;
 
     return true;
 }

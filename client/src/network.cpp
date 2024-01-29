@@ -94,7 +94,7 @@ namespace Network {
             uint16_t s_port;
 
             while (true) {
-
+                std::cerr << "\033[33m - 0 - \033[0m" << std::endl;
                 {
                     connection_t *conn;
 
@@ -129,6 +129,9 @@ namespace Network {
 
                     close(conn->sockfd);
                 }
+                std::cerr << "\033[33m - 1 - \033[0m" << std::endl;
+
+                std::cerr << "[NETWORK] The server is " << std::hex << s_ip << std::dec << ":" << s_port << std::endl;
 
                 /*
                  * Create socket and connect to server
@@ -145,14 +148,15 @@ namespace Network {
                     sockfd = socket(AF_INET, SOCK_STREAM, 0);
                     if (sockfd == -1) {
                         std::cerr << "ERROR: [Network init] Could not create the socket" << std::endl;
-                        exit(EXIT_FAILURE);
+                        continue;
                     }
 
                     DEBUG(std::cerr << "[Network] Connecting to the server" << std::endl;)
                         int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
                     if (connect_response < 0) {
                         std::cerr << "ERROR: [Network init] Could not connect to the server" << std::endl;
-                        exit(EXIT_FAILURE);
+                        // exit(EXIT_FAILURE);
+                        continue;
                     }
 
                     connection = conn_new(
@@ -164,7 +168,7 @@ namespace Network {
                     uint8_t status;
                     if (!request_handshake(connection, App::get_username(), false, &status)) {
                         std::cerr << "ERROR: [Network init] Failed to handshake" << std::endl;
-                        exit(EXIT_FAILURE);
+                        continue;
                     }
 
                     if (status != STATUS_SUCCESS) {
@@ -172,6 +176,7 @@ namespace Network {
                         exit(EXIT_FAILURE);
                     }
                 }
+                std::cerr << "\033[33m - 2 - \033[0m" << std::endl;
 
                 network_task_t task;
                 uint8_t status;
@@ -185,9 +190,12 @@ namespace Network {
 
                 running = true;
                 while (running) {
+                    std::cerr << "\033[33m - 3 - \033[0m" << std::endl;
                     std::optional<network_task_t> _task = task_queue.try_pop();
                     if (_task.has_value()) {
+                        std::cerr << "\033[33m - 5 - \033[0m" << std::endl;
                         task = _task.value();
+                        std::cerr << "\033[33m - 6 - \033[0m" << std::endl;
                         switch (task.type) {
                             case TASK_LIST_FILES:
                                 DEBUG(std::cerr << "[Network thread] Handling a list_files task" << std::endl;)
@@ -295,8 +303,10 @@ namespace Network {
                                 break;
                         }
                     }
+                    std::cerr << "\033[33m - 7 - \033[0m" << std::endl;
 
                     if (request_update(connection, &status, &file_event)) {
+                        std::cerr << "\033[33m - 8 - \033[0m" << std::endl;
                         if (status == STATUS_SUCCESS) {
                             switch (file_event.type) {
                                 case event_file_modified:
@@ -315,13 +325,18 @@ namespace Network {
                             }
                         }
                     } else {
-                        // running = false;
+                        std::cerr << "\033[33m - 9 - \033[0m" << std::endl;
+                        running = false;
                     }
+                    std::cerr << "\033[33m - 10 - \033[0m" << std::endl;
 
                     if (!_task.has_value()) {
+                        std::cerr << "\033[33m - 11 - \033[0m" << std::endl;
                         sleep(1);
                     }
+                    std::cerr << "\033[33m - 12 - \033[0m" << std::endl;
                 }
+                std::cerr << "\033[33m - 4 - \033[0m" << std::endl;
 
                 std::cerr << "[Network] closed connection" << std::endl;
             }
