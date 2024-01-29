@@ -54,212 +54,6 @@ int primary_init(arguments_t arguments) {
     return EXIT_FAILURE;
 }
 
-bool connect_to_server(uint32_t ip, uint16_t port, connection_t **out_connection) {
-    connection_t *conn;
-    {
-        // Setup
-        struct sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(port);
-        server_addr.sin_addr = { ip };
-        bzero(&server_addr.sin_zero, 8);
-
-        // Create socket
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Creating connection] Could not create the socket" << std::endl);
-            return false;
-        }
-
-        // Connect
-        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-        if (connect_response < 0) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl);
-            close(sockfd);
-            return false;
-        }
-
-        add_connection(sockfd);
-
-        // Create connection object
-        // INTERNAL: the client's fields are set to the server's fields on purpose
-        // TODO - Didio: figure out how to get client's IP and port
-        conn = conn_new(
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                sockfd);
-    }
-    *out_connection = conn;
-
-    return true;
-}
-
-bool initial_handshake(server_t primary_server) {
-    // std::cerr << "[DEBUG] Starting handshake" << std::endl;
-    // Connect to the elected server
-    connection_t *conn;
-    {
-        // Setup
-        // std::cerr << "[DEBUG] Seting up sockets" << std::endl;
-        struct sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(primary_server.port + 2);
-        server_addr.sin_addr = { primary_server.ip };
-        bzero(&server_addr.sin_zero, 8);
-
-        // Create socket
-        // std::cerr << "[DEBUG] Creating socket" << std::endl;
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd == -1) {
-            LOG_SYNC(std::cerr << "ERROR: [Election connection init 1a] Could not create the socket" << std::endl);
-            return false;
-        }
-
-        // Connect
-        // std::cerr << "[DEBUG] Connecting to primary" << std::endl;
-        int connect_response = connect(sockfd, (struct sockaddr *) (&server_addr), sizeof(struct sockaddr_in));
-        if (connect_response < 0) {
-            std::cerr << "ERROR: [Election connection init 1a] Could not connect to the server" << std::endl;
-            close(sockfd);
-            return false;
-        }
-
-        int optval = 1;
-        socklen_t optlen = sizeof(optval);
-        if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
-            perror("setsockopt()");
-            close(sockfd);
-            exit(EXIT_FAILURE);
-        }
-
-        if(getsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0) {
-            perror("getsockopt()");
-            close(sockfd);
-            exit(EXIT_FAILURE);
-        }
-        LOG_SYNC(std::cerr << "SO_KEEPALIVE is " << (optval ? "ON" : "OFF") << std::endl);
-
-        // TODO - Kaiser: KEEP_ALIVE
-        // TODO - Kaiser: botar um connection_t no state (talvez um mutex?).
-        // TODO - Kaiser: Idealmente, essa conexão pega o metadata e conecta no primario dessa conexao, mas pode considerar que essa conexao sempre eh com o primario por enquanto
-
-        add_connection(sockfd);
-
-        // Create connection object
-        // INTERNAL: the client's fields are set to the server's fields on purpose
-        // TODO - Didio: figure out how to get client's IP and port
-        // std::cerr << "[DEBUG] Connecting connection object" << std::endl;
-        conn = conn_new(
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                server_addr.sin_addr,
-                ntohs(server_addr.sin_port),
-                sockfd);
-    }
-
-    // Execute hello request
-    {
-        // std::cerr << "[DEBUG] Sending hello message" << std::endl;
-        request_t request = { .type = req_hello };
-        response_t response;
-        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
-            // Catch network errors
-            LOG_SYNC(std::cerr << "ERROR 100a" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-
-        // Catch logic errors
-        if (response.status != 0) {
-            LOG_SYNC(std::cerr << "ERROR 101a" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-    }
-
-    // Execute register request
-    {
-        // std::cerr << "[DEBUG] Sending hello message" << std::endl;
-        request_t request = { .type = req_register };
-        response_t response;
-        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
-            // Catch network errors
-            LOG_SYNC(std::cerr << "ERROR 100a" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-
-        // Catch logic errors
-        if (response.status != 0) {
-            LOG_SYNC(std::cerr << "ERROR 101a" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-    }
-
-    // Execute fetch metadata
-    {
-        // std::cerr << "[DEBUG] Sending metadata message" << std::endl;
-        request_t request = { .type = req_fetch_metadata };
-        response_t response;
-        if (!_coms_sync_execute_request(&conn->reader, &conn->writer, request, &response)) {
-            // Catch network errors
-            LOG_SYNC(std::cerr << "ERROR 100b" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-
-        // Catch logic errors
-        if (response.status != 0) {
-            LOG_SYNC(std::cerr << "ERROR 101b" << std::endl);
-            // std::cerr << "[DEBUG] Closing connection" << std::endl;
-            close(conn->sockfd);
-            // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-            conn_free(conn);
-            return false;
-        }
-
-        // Handle response
-        // std::cerr << "[DEBUG] Acquiring metadata" << std::endl;
-        metadata_t *metadata = acquire_metadata();
-        // Critical section
-        {
-            // std::cerr << "[DEBUG] Updating metadata (len = " << response.metadata.servers.size() << ")" << std::endl;
-            metadata->servers.clear();
-            for (auto server : response.metadata.servers) {
-                LOG_SYNC(std::cerr << "aaa: " << server << std::endl);
-                metadata->servers.push_back(server);
-            }
-        }
-        // std::cerr << "[DEBUG] Releasing metadata" << std::endl;
-        release_metadata();
-    }
-
-    // Close the connection and free the allocated memory
-    // std::cerr << "[DEBUG] Closing connection" << std::endl;
-    //close(conn->sockfd);
-    // std::cerr << "[DEBUG] Freeing connection" << std::endl;
-    //conn_free(conn);
-    return true;
-}
-
 #define FILE_PORT(port) (port)
 #define ELECTION_PORT(port) ((port)+1)
 #define COMMUNICATION_PORT(port) ((port)+2)
@@ -332,10 +126,10 @@ int backup_init(arguments_t arguments) {
         LOG_SYNC(std::cerr << "[DEBUG] [SETUP] Primary is " << std::hex << primary_ip << std::dec << ":" << primary_port << std::endl);
 
         close(conn->sockfd);
-        //conn_free(conn);
+        conn_free(conn);
     }
 
-    // 3. Connect to primary with a long-lived connection and fetch metadata
+    // 3. Connect to primary and fetch metadata
     connection_t *conn;
     {
         // Variables
@@ -405,9 +199,13 @@ int backup_init(arguments_t arguments) {
             return EXIT_FAILURE;
         }
 
-        metadata_t *metadata = acquire_metadata();
-        metadata->servers = response.metadata.servers;
-        release_metadata();
+        {
+            metadata_t *metadata = acquire_metadata();
+            metadata->servers = response.metadata.servers;
+            release_metadata();
+        }
+        close(conn->sockfd);
+        conn_free(conn);
     }
 
     init_done();

@@ -498,17 +498,19 @@ void *election_listener_thread(void *args) {
             LOG_SYNC(std::cerr << "[DEBUG] [Election Thread] Received a connection from ");
             LOG_SYNC(fprintf(stderr, "Could not read request from election thread!\n"));
             close(conn->sockfd);
+            exit(EXIT_FAILURE);
             break;
         }
         if (!read_u32(conn->reader, &server.ip)) {
             fprintf(stderr, "Could not read ip from election thread!\n");
             close(conn->sockfd);
+            exit(EXIT_FAILURE);
             break;
         }
         if (!read_u16(conn->reader, &server.port)) {
             fprintf(stderr, "Could not read port from election thread!\n");
-            pthread_exit(NULL);
             close(conn->sockfd);
+            exit(EXIT_FAILURE);
             break;
         }
 
@@ -525,7 +527,7 @@ void *election_listener_thread(void *args) {
     }
 
     close(listen_sockfd);
-    pthread_exit(NULL);
+    exit(EXIT_FAILURE);
     return NULL; 
 }
 

@@ -23,7 +23,7 @@ bool flush(struct tcp_writer& writer) {
 
     int bytes_sent = send(writer.sockfd, writer.buffer, writer.index, 0);
     if (bytes_sent < 0) {
-        std::cerr << "ERROR: [flusing writer] send failed with errno = `" << errno << "`" << std::endl;
+        std::cerr << "ERROR: [flushing writer] send failed with errno = `" << errno << "`" << std::endl;
         return false;
     }
     writer.index = 0;

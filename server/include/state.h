@@ -21,6 +21,11 @@ typedef struct {
 
     std::vector <connection_t*> heartbeatconnections;
     sem_t heartbeatvector_mutex;
+
+    sem_t initialization_lock;
+
+    sem_t deferred_requests_mutex;
+    std::vector<request_t> deferred_requests;
 } program_state_t;
 
 /****************\
@@ -28,10 +33,20 @@ typedef struct {
 \****************/
 void state_init(uint32_t ip, uint16_t port, server_type_t type);
 
+void wait_for_init();
+
+void init_done();
+
+std::vector<request_t> *acquire_deferred_requests();
+
+void release_deferred_requests();
+
 /*************\
 * Should stop *
 \*************/
 bool should_stop();
+
+void set_should_stop(bool value);
 
 /****************\
 * Current server *
